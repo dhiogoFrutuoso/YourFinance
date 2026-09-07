@@ -21,8 +21,6 @@
 
 <br />
 
-![App Preview Placeholder](https://via.placeholder.com/1200x600/121212/9D00FF?text=YourFinance+App+Preview+Screenshots)
-
 ---
 
 ## 📑 Índice
