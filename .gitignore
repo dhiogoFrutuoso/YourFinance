@@ -1,41 +1,59 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
-node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
 .DS_Store
-*.pem
+.atom/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-# local env files
-.env*.local
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
 
-# typescript
-*.tsbuildinfo
+# VS Code
+.vscode/
 
-# generated native folders
-/ios
-/android
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/coverage/
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Keystore files (Segurança: nunca commitar a chave de produção se houver)
+*.jks
+*.keystore
+key.properties
+
+# === EXCEÇÃO PARA O APK ===
+# O Git ignora diretórios pais excluídos. Para permitir apenas o APK final,
+# precisamos ignorar o conteúdo da pasta build, mas liberar o caminho até o APK.
+/build/*
+!/build/app/
+/build/app/*
+!/build/app/outputs/
+/build/app/outputs/*
+!/build/app/outputs/flutter-apk/
+/build/app/outputs/flutter-apk/*
+!/build/app/outputs/flutter-apk/app-release.apk
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
