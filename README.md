@@ -12,6 +12,11 @@
     <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge" alt="License">
     <img src="https://img.shields.io/github/repo-size/dhiogoFrutuoso/YourFinance?style=for-the-badge&color=9D00FF" alt="Repo Size">
   </p>
+
+  <br />
+  <a href="https://github.com/dhiogoFrutuoso/YourFinance/releases/latest/download/app-release.apk">
+    <img src="https://img.shields.io/badge/Download_APK_Direto-000000?style=for-the-badge&logo=android&logoColor=9D00FF&color=121212&labelColor=000000" alt="Download APK" />
+  </a>
 </div>
 
 <br />
