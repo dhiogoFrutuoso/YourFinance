@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/images/e2e23485-820d-442e-a8b3-e63050ffda13.jpg" alt="YourFinance Logo" width="150" style="border-radius: 20px;">
+  <img src="assets/images/logo.png" alt="YourFinance Logo" width="150" style="border-radius: 20px;">
 
   <h1>YourFinance</h1>
   <p><strong>A gestão do seu dinheiro tratada com a seriedade de um livro-razão. Imutável, auditável e no mais profundo Dark Mode.</strong></p>
