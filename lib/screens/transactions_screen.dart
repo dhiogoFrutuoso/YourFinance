@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
 import '../models/plan_item.dart';
 import '../utils/formatters.dart';
-import '../widgets/confirm_dialog.dart';
 import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/glassmorphism_modal.dart';
+import '../widgets/neon_text_field.dart';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -19,8 +22,9 @@ class TransactionsScreen extends ConsumerStatefulWidget {
 
 class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   String _searchQuery = '';
-  Set<String> _activeFilters = {};
+  final Set<String> _activeFilters = {};
   bool _sortByDateDesc = true;
+  bool _searchExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -54,164 +58,249 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       filtered.sort((a, b) => b.date.compareTo(a.date));
     }
 
+    // Group by day for sticky headers
+    final grouped = _groupByDay(filtered);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro e Auditoria'),
-        actions: [
-          IconButton(
-            icon: Icon(_sortByDateDesc ? Icons.sort : Icons.sort_by_alpha),
-            onPressed: () {
-              setState(() => _sortByDateDesc = !_sortByDateDesc);
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Pesquisar...',
-                prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
-                    : null,
-              ),
-              onChanged: (v) => setState(() => _searchQuery = v),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                'Entrada', 'Despesa', 'Dinheiro', 'Pix', 'Cartão'
-              ].map((f) => Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  label: Text(f),
-                  selected: _activeFilters.contains(f),
-                  selectedColor: AppTheme.primary.withOpacity(0.2),
-                  side: BorderSide(
-                    color: _activeFilters.contains(f) ? AppTheme.primary : Colors.white24,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ─── Header ───
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Extrato',
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
                   ),
-                  labelStyle: TextStyle(
-                    color: _activeFilters.contains(f) ? AppTheme.primary : Colors.white70,
-                    fontWeight: _activeFilters.contains(f) ? FontWeight.bold : FontWeight.normal,
+                  IconButton(
+                    icon: Icon(
+                      _sortByDateDesc ? Icons.sort_rounded : Icons.sort_by_alpha_rounded,
+                      color: AppTheme.textSecondary,
+                    ),
+                    onPressed: () => setState(() => _sortByDateDesc = !_sortByDateDesc),
                   ),
-                  onSelected: (sel) {
-                    setState(() {
-                      if (sel) _activeFilters.add(f);
-                      else _activeFilters.remove(f);
-                    });
-                  },
-                ),
-              )).toList(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(child: Text('Nenhuma transação encontrada.', style: TextStyle(color: Colors.white54)))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final t = filtered[index];
-                      final isIncome = (t.kind == model_transaction.TransactionKind.entrada && !t.isReversal) || 
-                                       (t.kind == model_transaction.TransactionKind.despesa && t.isReversal);
-                      final color = isIncome ? AppTheme.success : AppTheme.error;
-                      
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: color.withOpacity(0.1),
-                            child: Icon(
-                              t.isReversal ? Icons.sync_alt : (isIncome ? Icons.arrow_upward : Icons.arrow_downward),
-                              color: color,
-                            ),
-                          ),
-                          title: Text(t.title ?? t.categorySnapshotName ?? 'Transação', 
-                            style: TextStyle(
-                              decoration: t.isReversal ? TextDecoration.lineThrough : null,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text('${Formatters.formatDate(t.date)} • ${_getMethodName(t.paymentMethod)}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                Formatters.formatCurrency(t.value),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: color,
-                                  decoration: t.isReversal ? TextDecoration.lineThrough : null,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.white54),
-                                onPressed: () => _showAddTransactionModal(
-                                  context, 
-                                  t.kind == model_transaction.TransactionKind.entrada, 
-                                  transactionToEdit: t
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.white54),
-                                onPressed: () => _confirmDelete(context, t),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+                  IconButton(
+                    icon: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        _searchExpanded ? Icons.close_rounded : Icons.search_rounded,
+                        key: ValueKey(_searchExpanded),
+                        color: _searchExpanded ? AppTheme.primary : AppTheme.textSecondary,
+                      ),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _searchExpanded = !_searchExpanded;
+                        if (!_searchExpanded) _searchQuery = '';
+                      });
                     },
                   ),
-          ),
-        ],
+                ],
+              ),
+            ),
+
+            // ─── Expandable Search Bar ───
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: NeonTextField(
+                  hintText: 'Pesquisar transações...',
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textTertiary, size: 20),
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 18),
+                          onPressed: () => setState(() => _searchQuery = ''),
+                        )
+                      : null,
+                ),
+              ),
+              crossFadeState: _searchExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 250),
+              sizeCurve: Curves.easeOutCubic,
+            ),
+
+            // ─── Filter Chips ───
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  'Entrada', 'Despesa', 'Dinheiro', 'Pix', 'Cartão',
+                ].map((f) {
+                  final isActive = _activeFilters.contains(f);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isActive) _activeFilters.remove(f);
+                          else _activeFilters.add(f);
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isActive ? AppTheme.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isActive ? AppTheme.primary : Colors.white.withOpacity(0.15),
+                            width: 1,
+                          ),
+                          boxShadow: isActive
+                              ? AppTheme.glowShadow(blurRadius: 8, opacity: 0.2)
+                              : [],
+                        ),
+                        child: Text(
+                          f,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                            color: isActive ? Colors.white : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // ─── Transaction List with Sticky Headers ───
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.search_off_rounded, size: 48, color: AppTheme.textTertiary.withOpacity(0.4)),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Nenhuma transação encontrada.',
+                            style: GoogleFonts.inter(color: AppTheme.textTertiary, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                      itemCount: grouped.length,
+                      itemBuilder: (context, index) {
+                        final group = grouped[index];
+                        return _DayGroup(
+                          dayLabel: group.label,
+                          transactions: group.transactions,
+                          onEdit: (t) => _showAddTransactionModal(
+                            context,
+                            t.kind == model_transaction.TransactionKind.entrada,
+                            transactionToEdit: t,
+                          ),
+                          onDelete: (t) => _confirmDelete(context, t),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'btn1',
-            onPressed: () => _showAddTransactionModal(context, true),
-            icon: const Icon(Icons.add),
-            label: const Text('Entrada'),
-            backgroundColor: AppTheme.success,
-            foregroundColor: Colors.white,
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'btn2',
-            onPressed: () => _showAddTransactionModal(context, false),
-            icon: const Icon(Icons.remove),
-            label: const Text('Despesa'),
-            backgroundColor: AppTheme.error,
-            foregroundColor: Colors.white,
-          ),
-        ],
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 72),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // Income FAB
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: AppTheme.success.withOpacity(0.3), blurRadius: 12),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                heroTag: 'btn_income',
+                onPressed: () => _showAddTransactionModal(context, true),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: Text('Entrada', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                backgroundColor: AppTheme.success,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Expense FAB
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: AppTheme.error.withOpacity(0.3), blurRadius: 12),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                heroTag: 'btn_expense',
+                onPressed: () => _showAddTransactionModal(context, false),
+                icon: const Icon(Icons.remove_rounded, size: 20),
+                label: Text('Despesa', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                backgroundColor: AppTheme.error,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String _getMethodName(model_transaction.PaymentMethod m) {
-    switch (m) {
-      case model_transaction.PaymentMethod.dinheiro: return 'Dinheiro';
-      case model_transaction.PaymentMethod.pix: return 'Pix';
-      case model_transaction.PaymentMethod.cartaoCredito: return 'Cartão de Crédito';
+  List<_DayGroupData> _groupByDay(List<model_transaction.Transaction> transactions) {
+    final Map<String, List<model_transaction.Transaction>> map = {};
+    for (var t in transactions) {
+      final key = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}';
+      map.putIfAbsent(key, () => []);
+      map[key]!.add(t);
     }
+
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final yesterdayKey = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+
+    final sortedKeys = map.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return sortedKeys.map((key) {
+      String label;
+      if (key == today) {
+        label = 'Hoje';
+      } else if (key == yesterdayKey) {
+        label = 'Ontem';
+      } else {
+        final parts = key.split('-');
+        label = '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+      return _DayGroupData(label: label, transactions: map[key]!);
+    }).toList();
   }
 
   void _confirmDelete(BuildContext context, model_transaction.Transaction original) async {
-    final confirmed = await ConfirmDialog.show(
+    final confirmed = await GlassmorphismModal.show(
       context: context, 
       title: 'Excluir Transação?',
+      content: 'O estorno será registrado automaticamente.',
+      confirmText: 'Excluir',
+      confirmIcon: Icons.delete_outline_rounded,
     );
     if (confirmed) {
       ref.read(transactionsProvider.notifier).reverseTransaction(original);
@@ -223,31 +312,237 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).cardTheme.color,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AddTransactionSheet(isIncome: isIncome, transactionToEdit: transactionToEdit),
+    );
+  }
+}
+
+// ─── Day Group Data ───────────────────────────────────────────────
+
+class _DayGroupData {
+  final String label;
+  final List<model_transaction.Transaction> transactions;
+  const _DayGroupData({required this.label, required this.transactions});
+}
+
+// ─── Day Group Widget ─────────────────────────────────────────────
+
+class _DayGroup extends StatelessWidget {
+  final String dayLabel;
+  final List<model_transaction.Transaction> transactions;
+  final ValueChanged<model_transaction.Transaction> onEdit;
+  final ValueChanged<model_transaction.Transaction> onDelete;
+
+  const _DayGroup({
+    required this.dayLabel,
+    required this.transactions,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Sticky-style day header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 16, 0, 8),
+          child: Text(
+            dayLabel,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textTertiary,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
-        child: _AddTransactionForm(isIncome: isIncome, transactionToEdit: transactionToEdit),
+        // Transaction items
+        ...transactions.map((t) => _TransactionTile(
+          transaction: t,
+          onEdit: () => onEdit(t),
+          onDelete: () => onDelete(t),
+        )),
+      ],
+    );
+  }
+}
+
+// ─── Individual Transaction Tile (Dismissible) ────────────────────
+
+class _TransactionTile extends StatelessWidget {
+  final model_transaction.Transaction transaction;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _TransactionTile({
+    required this.transaction,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  IconData _getPaymentIcon(model_transaction.PaymentMethod method) {
+    switch (method) {
+      case model_transaction.PaymentMethod.dinheiro:
+        return Icons.payments_rounded;
+      case model_transaction.PaymentMethod.pix:
+        return Icons.bolt_rounded;
+      case model_transaction.PaymentMethod.cartaoCredito:
+        return Icons.credit_card_rounded;
+    }
+  }
+
+  String _getMethodName(model_transaction.PaymentMethod m) {
+    switch (m) {
+      case model_transaction.PaymentMethod.dinheiro: return 'Dinheiro';
+      case model_transaction.PaymentMethod.pix: return 'Pix';
+      case model_transaction.PaymentMethod.cartaoCredito: return 'Cartão';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = transaction;
+    final isIncome = (t.kind == model_transaction.TransactionKind.entrada && !t.isReversal) ||
+                     (t.kind == model_transaction.TransactionKind.despesa && t.isReversal);
+    final color = isIncome ? AppTheme.success : AppTheme.error;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Dismissible(
+        key: ValueKey(t.id),
+        background: _dismissBackground(
+          alignment: Alignment.centerLeft,
+          color: AppTheme.primary,
+          icon: Icons.edit_rounded,
+          label: 'Editar',
+        ),
+        secondaryBackground: _dismissBackground(
+          alignment: Alignment.centerRight,
+          color: AppTheme.error,
+          icon: Icons.delete_outline_rounded,
+          label: 'Excluir',
+        ),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            onEdit();
+            return false;
+          } else {
+            onDelete();
+            return false;
+          }
+        },
+        child: GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              // Payment method icon
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.12),
+                ),
+                child: Icon(
+                  t.isReversal ? Icons.sync_alt_rounded : _getPaymentIcon(t.paymentMethod),
+                  color: color,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Title + details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.title ?? t.categorySnapshotName ?? 'Transação',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                        decoration: t.isReversal ? TextDecoration.lineThrough : null,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${Formatters.formatDate(t.date)} • ${_getMethodName(t.paymentMethod)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Value
+              Text(
+                '${isIncome ? '+' : '-'} ${Formatters.formatCurrency(t.value)}',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  decoration: t.isReversal ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dismissBackground({
+    required Alignment alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: alignment == Alignment.centerLeft
+            ? [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 8),
+                Text(label, style: GoogleFonts.inter(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+              ]
+            : [
+                Text(label, style: GoogleFonts.inter(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(width: 8),
+                Icon(icon, color: color, size: 22),
+              ],
       ),
     );
   }
 }
 
-class _AddTransactionForm extends ConsumerStatefulWidget {
+// ─── Add Transaction Bottom Sheet ─────────────────────────────────
+
+class _AddTransactionSheet extends ConsumerStatefulWidget {
   final bool isIncome;
   final model_transaction.Transaction? transactionToEdit;
   
-  const _AddTransactionForm({required this.isIncome, this.transactionToEdit});
+  const _AddTransactionSheet({required this.isIncome, this.transactionToEdit});
 
   @override
-  ConsumerState<_AddTransactionForm> createState() => _AddTransactionFormState();
+  ConsumerState<_AddTransactionSheet> createState() => _AddTransactionSheetState();
 }
 
-class _AddTransactionFormState extends ConsumerState<_AddTransactionForm> {
+class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
   final _formKey = GlobalKey<FormState>();
   final _valueController = TextEditingController();
   final _titleController = TextEditingController();
@@ -264,8 +559,6 @@ class _AddTransactionFormState extends ConsumerState<_AddTransactionForm> {
       _titleController.text = t.title ?? '';
       _date = t.date;
       _paymentMethod = t.paymentMethod;
-      // We cannot easily preselect _selectedPlanItem because it requires knowing the list from provider
-      // but we will do it in build() if it matches.
     }
   }
 
@@ -278,11 +571,10 @@ class _AddTransactionFormState extends ConsumerState<_AddTransactionForm> {
 
   @override
   Widget build(BuildContext context) {
-    final monthRef = ref.watch(selectedMonthProvider);
+    ref.watch(selectedMonthProvider);
     final plannedItems = ref.watch(planningProvider);
     
-    // For expenses, offer mandatory expenses as category
-    final categoryOptions = widget.isIncome ? [] : plannedItems.where((i) => i.type == PlanItemType.despesaObrigatoria).toList();
+    final categoryOptions = widget.isIncome ? <PlanItem>[] : plannedItems.where((i) => i.type == PlanItemType.despesaObrigatoria).toList();
 
     if (widget.transactionToEdit != null && _selectedPlanItem == null && widget.transactionToEdit!.planItemId != null) {
       try {
@@ -290,113 +582,187 @@ class _AddTransactionFormState extends ConsumerState<_AddTransactionForm> {
       } catch (e) {}
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              widget.transactionToEdit == null ? (widget.isIncome ? 'Adicionar Entrada' : 'Adicionar Despesa') : 'Editar Transação',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            TextFormField(
-              controller: _valueController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Valor (R\$)'),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Campo obrigatório';
-                if (double.tryParse(v.replaceAll(',', '.')) == null) return 'Valor inválido';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) setState(() => _date = picked);
-              },
-              child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'Data'),
-                child: Text(Formatters.formatDate(_date)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<model_transaction.PaymentMethod>(
-              value: _paymentMethod,
-              decoration: const InputDecoration(labelText: 'Meio de Pagamento'),
-              items: model_transaction.PaymentMethod.values.map((m) {
-                return DropdownMenuItem(
-                  value: m,
-                  child: Text(_getMethodName(m)),
-                );
-              }).toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _paymentMethod = v);
-              },
-            ),
-            const SizedBox(height: 16),
-            if (!widget.isIncome) ...[
-              DropdownButtonFormField<PlanItem?>(
-                value: _selectedPlanItem,
-                decoration: const InputDecoration(labelText: 'Categoria (Vínculo)'),
-                items: [
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Text('Despesa Adicional (Não planejada)'),
+    final accentColor = widget.isIncome ? AppTheme.success : AppTheme.error;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withOpacity(0.95),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(
+          top: BorderSide(color: accentColor.withOpacity(0.3), width: 1),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  ...categoryOptions.map((c) => DropdownMenuItem(
-                    value: c,
-                    child: Text(c.name),
-                  ))
-                ],
-                onChanged: (v) {
-                  setState(() => _selectedPlanItem = v);
-                },
-              ),
-              const SizedBox(height: 16),
-              if (_selectedPlanItem == null)
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(labelText: 'Título da Despesa'),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Título é obrigatório para despesas adicionais' : null,
                 ),
-            ],
-            const SizedBox(height: 24),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.isIncome ? AppTheme.success : AppTheme.error,
-              ),
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  final t = model_transaction.Transaction(
-                    id: widget.transactionToEdit?.id ?? const Uuid().v4(),
-                    kind: widget.isIncome ? model_transaction.TransactionKind.entrada : model_transaction.TransactionKind.despesa,
-                    value: double.parse(_valueController.text.replaceAll(',', '.')),
-                    date: _date,
-                    paymentMethod: _paymentMethod,
-                    planItemId: _selectedPlanItem?.id,
-                    categorySnapshotName: _selectedPlanItem?.name,
-                    title: _titleController.text.trim().isNotEmpty ? _titleController.text.trim() : null,
-                    createdAt: widget.transactionToEdit?.createdAt ?? DateTime.now(),
-                  );
-                  ref.read(transactionsProvider.notifier).addTransaction(t); // add overwrites in Hive if ID matches
-                  HapticFeedback.mediumImpact();
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Salvar Transação'),
+                const SizedBox(height: 20),
+
+                // Title
+                Text(
+                  widget.transactionToEdit == null
+                      ? (widget.isIncome ? 'Nova Entrada' : 'Nova Despesa')
+                      : 'Editar Transação',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Value
+                NeonTextField(
+                  controller: _valueController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  labelText: 'Valor (R\$)',
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Campo obrigatório';
+                    if (double.tryParse(v.replaceAll(',', '.')) == null) return 'Valor inválido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Date
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _date,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) setState(() => _date = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Data',
+                      suffixIcon: Icon(Icons.calendar_today_rounded, size: 18, color: AppTheme.textTertiary),
+                    ),
+                    child: Text(
+                      Formatters.formatDate(_date),
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Payment method
+                DropdownButtonFormField<model_transaction.PaymentMethod>(
+                  value: _paymentMethod,
+                  decoration: const InputDecoration(labelText: 'Meio de Pagamento'),
+                  dropdownColor: AppTheme.surface,
+                  items: model_transaction.PaymentMethod.values.map((m) {
+                    return DropdownMenuItem(
+                      value: m,
+                      child: Text(_getMethodName(m)),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _paymentMethod = v);
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Category (for expenses)
+                if (!widget.isIncome) ...[
+                  DropdownButtonFormField<PlanItem?>(
+                    value: _selectedPlanItem,
+                    decoration: const InputDecoration(labelText: 'Categoria (Vínculo)'),
+                    dropdownColor: AppTheme.surface,
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Despesa Adicional (Não planejada)'),
+                      ),
+                      ...categoryOptions.map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.name),
+                      ))
+                    ],
+                    onChanged: (v) {
+                      setState(() => _selectedPlanItem = v);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (_selectedPlanItem == null)
+                    NeonTextField(
+                      controller: _titleController,
+                      labelText: 'Título da Despesa',
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Título é obrigatório para despesas adicionais' : null,
+                    ),
+                ],
+                const SizedBox(height: 28),
+
+                // Save button
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: accentColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(0.3),
+                        blurRadius: 16,
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: widget.isIncome ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: () {
+                      if (_formKey.currentState!.validate()) {
+                        final t = model_transaction.Transaction(
+                          id: widget.transactionToEdit?.id ?? const Uuid().v4(),
+                          kind: widget.isIncome ? model_transaction.TransactionKind.entrada : model_transaction.TransactionKind.despesa,
+                          value: double.parse(_valueController.text.replaceAll(',', '.')),
+                          date: _date,
+                          paymentMethod: _paymentMethod,
+                          planItemId: _selectedPlanItem?.id,
+                          categorySnapshotName: _selectedPlanItem?.name,
+                          title: _titleController.text.trim().isNotEmpty ? _titleController.text.trim() : null,
+                          createdAt: widget.transactionToEdit?.createdAt ?? DateTime.now(),
+                        );
+                        ref.read(transactionsProvider.notifier).addTransaction(t);
+                        HapticFeedback.mediumImpact();
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: Text(
+                      'Salvar Transação',
+                      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

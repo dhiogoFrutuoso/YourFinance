@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
 import '../models/plan_item.dart';
 import '../utils/formatters.dart';
 import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/insight_box.dart';
 
 class AnalysisScreen extends ConsumerWidget {
   const AnalysisScreen({super.key});
@@ -22,29 +25,74 @@ class AnalysisScreen extends ConsumerWidget {
     }).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Análises Inteligentes'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildABC(currentMonthTransactions),
-            const SizedBox(height: 32),
-            _buildProjections(plannedItems, monthRef),
-            const SizedBox(height: 32),
-            _buildSurvivalFactor(plannedItems, currentMonthTransactions, monthRef),
-            const SizedBox(height: 32),
-            _buildPaymentMethods(currentMonthTransactions),
-            const SizedBox(height: 48), // Bottom padding
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // ─── Header ───
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.primary.withOpacity(0.15),
+                      ),
+                      child: const Icon(Icons.insights_rounded, color: AppTheme.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Análises',
+                          style: GoogleFonts.inter(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Inteligência financeira',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ─── Sections ───
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _buildABCSection(currentMonthTransactions),
+                  const SizedBox(height: 20),
+                  _buildProjectionsSection(plannedItems, monthRef),
+                  const SizedBox(height: 20),
+                  _buildSurvivalSection(plannedItems, currentMonthTransactions, monthRef),
+                  const SizedBox(height: 20),
+                  _buildPaymentMethodsSection(currentMonthTransactions),
+                ]),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildABC(List<model_transaction.Transaction> transactions) {
+  // ─── 1. Curva ABC ──────────────────────────────────────────────
+
+  Widget _buildABCSection(List<model_transaction.Transaction> transactions) {
     final expenses = transactions.where((t) => t.kind == model_transaction.TransactionKind.despesa).toList();
     
     double total = 0;
@@ -69,35 +117,37 @@ class AnalysisScreen extends ConsumerWidget {
       }
     }
 
-    return _buildCard(
-      title: '1. Curva ABC (Concentração de Gastos)',
+    return _AnalysisCard(
+      title: 'Curva ABC',
+      subtitle: 'Concentração de Gastos',
+      icon: Icons.pie_chart_rounded,
       child: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Categoria')),
-                DataColumn(label: Text('Valor'), numeric: true),
-                DataColumn(label: Text('%'), numeric: true),
-              ],
+          if (sorted.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Sem dados de despesas.',
+                style: GoogleFonts.inter(color: AppTheme.textTertiary, fontSize: 13),
+              ),
+            )
+          else
+            _CustomTable(
+              headers: ['Categoria', 'Valor', '%'],
               rows: sorted.map((e) {
                 final perc = (e.value / total) * 100;
-                return DataRow(cells: [
-                  DataCell(Text(e.key)),
-                  DataCell(Text(Formatters.formatCurrency(e.value))),
-                  DataCell(Text('${perc.toStringAsFixed(1)}%')),
-                ]);
+                return [e.key, Formatters.formatCurrency(e.value), '${perc.toStringAsFixed(1)}%'];
               }).toList(),
             ),
-          ),
-          _buildSynthesis(synthesis),
+          InsightBox(text: synthesis),
         ],
       ),
     );
   }
 
-  Widget _buildProjections(List<PlanItem> plannedItems, String currentMonthRef) {
+  // ─── 2. Projeção de Parcelas ────────────────────────────────────
+
+  Widget _buildProjectionsSection(List<PlanItem> plannedItems, String currentMonthRef) {
     final installments = plannedItems.where((i) => i.isInstallment == true).toList();
     
     final currentMonthParts = currentMonthRef.split('-');
@@ -109,17 +159,14 @@ class AnalysisScreen extends ConsumerWidget {
       final startMonthParts = item.monthRef.split('-');
       final startMonthDate = DateTime(int.parse(startMonthParts[0]), int.parse(startMonthParts[1]));
       
-      // month 1 (next month)
       final d1 = DateTime(currentMonthDate.year, currentMonthDate.month + 1);
       final diff1 = (d1.year - startMonthDate.year) * 12 + d1.month - startMonthDate.month;
       if (diff1 >= 0 && diff1 < (item.totalInstallments ?? 1)) m1 += item.value;
 
-      // month 2
       final d2 = DateTime(currentMonthDate.year, currentMonthDate.month + 2);
       final diff2 = (d2.year - startMonthDate.year) * 12 + d2.month - startMonthDate.month;
       if (diff2 >= 0 && diff2 < (item.totalInstallments ?? 1)) m2 += item.value;
 
-      // month 3
       final d3 = DateTime(currentMonthDate.year, currentMonthDate.month + 3);
       final diff3 = (d3.year - startMonthDate.year) * 12 + d3.month - startMonthDate.month;
       if (diff3 >= 0 && diff3 < (item.totalInstallments ?? 1)) m3 += item.value;
@@ -136,73 +183,73 @@ class AnalysisScreen extends ConsumerWidget {
       }
     }
 
-    return _buildCard(
-      title: '2. Projeção de Parcelas (Próximos 3 Meses)',
+    return _AnalysisCard(
+      title: 'Projeção',
+      subtitle: 'Parcelas nos Próximos 3 Meses',
+      icon: Icons.timeline_rounded,
       child: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Mês')),
-                DataColumn(label: Text('Dívida Comprometida'), numeric: true),
-              ],
-              rows: [
-                DataRow(cells: [const DataCell(Text('+1 Mês')), DataCell(Text(Formatters.formatCurrency(m1)))]),
-                DataRow(cells: [const DataCell(Text('+2 Meses')), DataCell(Text(Formatters.formatCurrency(m2)))]),
-                DataRow(cells: [const DataCell(Text('+3 Meses')), DataCell(Text(Formatters.formatCurrency(m3)))]),
-              ],
-            ),
+          _CustomTable(
+            headers: ['Período', 'Comprometido'],
+            rows: [
+              ['+1 Mês', Formatters.formatCurrency(m1)],
+              ['+2 Meses', Formatters.formatCurrency(m2)],
+              ['+3 Meses', Formatters.formatCurrency(m3)],
+            ],
           ),
-          _buildSynthesis(synthesis),
+          InsightBox(text: synthesis),
         ],
       ),
     );
   }
 
-  Widget _buildSurvivalFactor(List<PlanItem> plannedItems, List<model_transaction.Transaction> transactions, String currentMonthRef) {
-    // Only current month planned
+  // ─── 3. Fator de Sobrevivência ──────────────────────────────────
+
+  Widget _buildSurvivalSection(List<PlanItem> plannedItems, List<model_transaction.Transaction> transactions, String currentMonthRef) {
     final fixedIncome = plannedItems.where((i) => i.type == PlanItemType.entradaFixa).fold<double>(0, (prev, curr) => prev + curr.value);
     final mandatoryExpense = plannedItems.where((i) => i.type == PlanItemType.despesaObrigatoria).fold<double>(0, (prev, curr) => prev + curr.value);
 
     final factor = mandatoryExpense > 0 ? (fixedIncome / mandatoryExpense) : 0;
     
     String synthesis = "Fator de sobrevivência não calculado (sem despesas obrigatórias).";
+    Color insightColor = AppTheme.primary;
     if (mandatoryExpense > 0) {
       if (factor < 1) {
         synthesis = "ALERTA: Sua renda fixa não é suficiente para bancar sua vida fixa. Você depende de renda extra ou está gerando dívidas todos os meses.";
+        insightColor = AppTheme.error;
       } else if (factor < 1.3) {
         synthesis = "Margem de segurança muito baixa. Qualquer imprevisto pode comprometer suas finanças.";
+        insightColor = AppTheme.warning;
       } else {
         synthesis = "Bom! Sua renda fixa cobre tranquilamente seu padrão de vida essencial.";
+        insightColor = AppTheme.success;
       }
     }
 
-    return _buildCard(
-      title: '3. Fator de Sobrevivência',
+    return _AnalysisCard(
+      title: 'Sobrevivência',
+      subtitle: 'Renda vs. Despesa Fixa',
+      icon: Icons.shield_rounded,
       child: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Métrica')),
-                DataColumn(label: Text('Valor'), numeric: true),
-              ],
-              rows: [
-                DataRow(cells: [const DataCell(Text('Renda Fixa')), DataCell(Text(Formatters.formatCurrency(fixedIncome), style: const TextStyle(color: AppTheme.success)))]),
-                DataRow(cells: [const DataCell(Text('Despesa Obrigatória')), DataCell(Text(Formatters.formatCurrency(mandatoryExpense), style: const TextStyle(color: AppTheme.error)))]),
-                DataRow(cells: [const DataCell(Text('Proporção (Renda/Despesa)')), DataCell(Text('${factor.toStringAsFixed(2)}x'))]),
-              ],
-            ),
+          _CustomTable(
+            headers: ['Métrica', 'Valor'],
+            rows: [
+              ['Renda Fixa', Formatters.formatCurrency(fixedIncome)],
+              ['Despesa Obrigatória', Formatters.formatCurrency(mandatoryExpense)],
+              ['Proporção', '${factor.toStringAsFixed(2)}x'],
+            ],
+            valueColors: [AppTheme.success, AppTheme.error, null],
           ),
-          _buildSynthesis(synthesis),
+          InsightBox(text: synthesis, accentColor: insightColor),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentMethods(List<model_transaction.Transaction> transactions) {
+  // ─── 4. Meios de Pagamento ──────────────────────────────────────
+
+  Widget _buildPaymentMethodsSection(List<model_transaction.Transaction> transactions) {
     int pixCount = 0; double pixTotal = 0;
     int creditCount = 0; double creditTotal = 0;
     int moneyCount = 0; double moneyTotal = 0;
@@ -216,91 +263,193 @@ class AnalysisScreen extends ConsumerWidget {
     }
 
     String synthesis = "Nenhuma despesa registrada ainda.";
+    Color insightColor = AppTheme.primary;
     if (pixCount > 0 || creditCount > 0 || moneyCount > 0) {
       if (creditTotal > (pixTotal + moneyTotal) * 2) {
         synthesis = "CUIDADO: Uso desproporcional do Cartão de Crédito. Alto risco de descontrole e falsa sensação de poder de compra.";
+        insightColor = AppTheme.error;
       } else if (pixCount > 10) {
         synthesis = "Muitas transações via Pix identificadas. Cuidado com micro-gastos que somam grandes valores invisíveis.";
+        insightColor = AppTheme.warning;
       } else {
         synthesis = "Uso equilibrado dos meios de pagamento.";
+        insightColor = AppTheme.success;
       }
     }
 
-    return _buildCard(
-      title: '4. Uso de Meios de Pagamento',
+    return _AnalysisCard(
+      title: 'Pagamentos',
+      subtitle: 'Uso de Meios de Pagamento',
+      icon: Icons.credit_card_rounded,
       child: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Método')),
-                DataColumn(label: Text('Qtd')),
-                DataColumn(label: Text('Total'), numeric: true),
-              ],
-              rows: [
-                DataRow(cells: [const DataCell(Text('Pix')), DataCell(Text('$pixCount')), DataCell(Text(Formatters.formatCurrency(pixTotal)))]),
-                DataRow(cells: [const DataCell(Text('Cartão')), DataCell(Text('$creditCount')), DataCell(Text(Formatters.formatCurrency(creditTotal)))]),
-                DataRow(cells: [const DataCell(Text('Dinheiro')), DataCell(Text('$moneyCount')), DataCell(Text(Formatters.formatCurrency(moneyTotal)))]),
-              ],
-            ),
+          _CustomTable(
+            headers: ['Método', 'Qtd', 'Total'],
+            rows: [
+              ['Pix', '$pixCount', Formatters.formatCurrency(pixTotal)],
+              ['Cartão', '$creditCount', Formatters.formatCurrency(creditTotal)],
+              ['Dinheiro', '$moneyCount', Formatters.formatCurrency(moneyTotal)],
+            ],
           ),
-          _buildSynthesis(synthesis),
+          InsightBox(text: synthesis, accentColor: insightColor),
         ],
       ),
     );
   }
+}
 
-  Widget _buildCard({required String title, required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
+// ─── Analysis Card Container ──────────────────────────────────────
+
+class _AnalysisCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget child;
+
+  const _AnalysisCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
+          // Header
+          Padding(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.white12)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primary,
-              ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.primary.withOpacity(0.12),
+                  ),
+                  child: Icon(icon, color: AppTheme.primary, size: 16),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          child,
+          Divider(height: 1, color: Colors.white.withOpacity(0.06)),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSynthesis(String text) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primary.withOpacity(0.1),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Síntese:',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryLight),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            text,
-            style: const TextStyle(color: Colors.white70, height: 1.4),
-          ),
-        ],
-      ),
+// ─── Custom Table (Row/Column based, no DataTable) ────────────────
+
+class _CustomTable extends StatelessWidget {
+  final List<String> headers;
+  final List<List<String>> rows;
+  final List<Color?>? valueColors;
+
+  const _CustomTable({
+    required this.headers,
+    required this.rows,
+    this.valueColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Header row
+        Row(
+          children: headers.asMap().entries.map((entry) {
+            final isFirst = entry.key == 0;
+            final isLast = entry.key == headers.length - 1;
+            return Expanded(
+              flex: isFirst ? 3 : 2,
+              child: Text(
+                entry.value,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textTertiary,
+                  letterSpacing: 0.5,
+                ),
+                textAlign: isLast ? TextAlign.right : (isFirst ? TextAlign.left : TextAlign.center),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        Divider(height: 1, color: Colors.white.withOpacity(0.06)),
+
+        // Data rows
+        ...rows.asMap().entries.map((rowEntry) {
+          final rowIndex = rowEntry.key;
+          final row = rowEntry.value;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: row.asMap().entries.map((cellEntry) {
+                    final colIndex = cellEntry.key;
+                    final isFirst = colIndex == 0;
+                    final isLast = colIndex == row.length - 1;
+                    Color? cellColor;
+                    if (valueColors != null && rowIndex < valueColors!.length && colIndex > 0) {
+                      cellColor = valueColors![rowIndex];
+                    }
+                    return Expanded(
+                      flex: isFirst ? 3 : 2,
+                      child: Text(
+                        cellEntry.value,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: isFirst ? FontWeight.w500 : FontWeight.w600,
+                          color: cellColor ?? (isFirst ? AppTheme.textSecondary : AppTheme.textPrimary),
+                        ),
+                        textAlign: isLast ? TextAlign.right : (isFirst ? TextAlign.left : TextAlign.center),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              if (rowIndex < rows.length - 1)
+                Divider(height: 1, color: Colors.white.withOpacity(0.04)),
+            ],
+          );
+        }),
+      ],
     );
   }
 }

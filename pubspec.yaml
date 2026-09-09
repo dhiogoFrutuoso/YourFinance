@@ -78,15 +78,15 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/logo.png
+    - assets/images/logo.webp
 
 flutter_native_splash:
-  color: "#121212"
-  image: assets/images/logo.png
+  color: "#050505"
+  image: assets/images/logo.webp
   android_12:
-    image: assets/images/logo.png
-    icon_background_color: "#121212"
-    color: "#121212"
+    image: assets/images/logo.webp
+    icon_background_color: "#050505"
+    color: "#050505"
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -116,4 +116,6 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/logo.webp"
+  adaptive_icon_background: "#050505"
+  adaptive_icon_foreground: "assets/images/logo.webp"

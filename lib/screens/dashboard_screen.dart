@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
 import '../utils/formatters.dart';
+import '../theme/app_theme.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/quick_stat_card.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -43,75 +47,370 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     for (var t in currentMonthTransactions) {
        if (t.isReversal) {
           if (t.kind == model_transaction.TransactionKind.entrada) {
-             totalIncomes += t.value; // Reversal of expense is an income
+             totalIncomes += t.value;
           } else {
-             totalExpenses += t.value; // Reversal of income is an expense
+             totalExpenses += t.value;
           }
        }
     }
 
     final balance = totalIncomes - totalExpenses;
+    final total = totalIncomes + totalExpenses;
+    final spentPercentage = totalIncomes > 0 ? ((totalExpenses / totalIncomes) * 100).clamp(0, 999) : 0.0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset('assets/images/logo.png', height: 28),
-            ),
-            const SizedBox(width: 8),
-            const Text('Dashboard'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.push('/settings'),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildMonthSelector(context, monthRef),
-            const SizedBox(height: 24),
-            _buildSummaryCards(totalIncomes, totalExpenses, balance),
-            const SizedBox(height: 24),
-            if (totalIncomes > 0 || totalExpenses > 0) ...[
-              _buildChart(totalIncomes, totalExpenses),
-              const SizedBox(height: 24),
-            ],
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Últimas Transações',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ─── Header with Greeting + Settings ───
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Olá! 👋',
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Visão geral das finanças',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppTheme.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      // Logo
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset('assets/images/logo.png', height: 32),
+                      ),
+                      const SizedBox(width: 8),
+                      // Settings
+                      GestureDetector(
+                        onTap: () => context.push('/settings'),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface.withOpacity(0.6),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          ),
+                          child: const Icon(Icons.settings_rounded, size: 20, color: AppTheme.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ─── Month Selector (Dropdown elegante) ───
+              _MonthDropdown(
+                currentMonthRef: monthRef,
+                onChanged: (newMonth) {
+                  ref.read(selectedMonthProvider.notifier).update(newMonth);
+                },
+              ),
+              const SizedBox(height: 28),
+
+              // ─── Big Number Display ───
+              GlassCard(
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                borderColor: balance >= 0 
+                    ? AppTheme.success.withOpacity(0.15) 
+                    : AppTheme.error.withOpacity(0.15),
+                child: Column(
+                  children: [
+                    Text(
+                      'Saldo Atual',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      Formatters.formatCurrency(balance),
+                      style: GoogleFonts.inter(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: balance >= 0 ? AppTheme.success : AppTheme.error,
+                        letterSpacing: -2,
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to Tab 2 (index 2 for Transactions)
-                    // We can just switch the tab by using a global provider or letting the user tap
-                    // Since go_router handles it, maybe just show a hint.
-                  },
-                  child: const Text('Ver todas'),
-                )
+              ),
+              const SizedBox(height: 16),
+
+              // ─── Quick Stat Row ───
+              Row(
+                children: [
+                  Expanded(
+                    child: QuickStatCard(
+                      label: 'Entradas',
+                      value: Formatters.formatCurrency(totalIncomes),
+                      icon: Icons.arrow_upward_rounded,
+                      color: AppTheme.success,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: QuickStatCard(
+                      label: 'Saídas',
+                      value: Formatters.formatCurrency(totalExpenses),
+                      icon: Icons.arrow_downward_rounded,
+                      color: AppTheme.error,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // ─── Donut Chart ───
+              if (total > 0) ...[
+                GlassCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Distribuição',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 180,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            PieChart(
+                              PieChartData(
+                                sectionsSpace: 3,
+                                centerSpaceRadius: 60,
+                                startDegreeOffset: -90,
+                                sections: [
+                                  if (totalIncomes > 0)
+                                    PieChartSectionData(
+                                      color: AppTheme.success,
+                                      value: totalIncomes,
+                                      title: '',
+                                      radius: 16,
+                                    ),
+                                  if (totalExpenses > 0)
+                                    PieChartSectionData(
+                                      color: AppTheme.error,
+                                      value: totalExpenses,
+                                      title: '',
+                                      radius: 16,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Center text
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${spentPercentage.toStringAsFixed(0)}%',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  'gasto',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppTheme.textTertiary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Legend
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _LegendDot(color: AppTheme.success, label: 'Entradas'),
+                          const SizedBox(width: 24),
+                          _LegendDot(color: AppTheme.error, label: 'Saídas'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
-            ),
-            const SizedBox(height: 8),
-            _buildRecentTransactions(currentMonthTransactions),
-          ],
+
+              // ─── Recent Transactions ───
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Últimas Transações',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {},
+                    child: Text(
+                      'Ver todas',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildRecentTransactions(currentMonthTransactions),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMonthSelector(BuildContext context, String currentMonthRef) {
-    return InkWell(
+  Widget _buildRecentTransactions(List<model_transaction.Transaction> transactions) {
+    if (transactions.isEmpty) {
+      return GlassCard(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.receipt_long_rounded, size: 40, color: AppTheme.textTertiary.withOpacity(0.4)),
+              const SizedBox(height: 12),
+              Text(
+                'Nenhuma transação neste mês.',
+                style: GoogleFonts.inter(color: AppTheme.textTertiary, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    final recent = transactions.take(5).toList();
+    
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: List.generate(recent.length, (index) {
+          final t = recent[index];
+          final isIncome = (t.kind == model_transaction.TransactionKind.entrada && !t.isReversal) || 
+                           (t.kind == model_transaction.TransactionKind.despesa && t.isReversal);
+          final color = isIncome ? AppTheme.success : AppTheme.error;
+          
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color.withOpacity(0.12),
+                      ),
+                      child: Icon(
+                        isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                        color: color,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.title ?? t.categorySnapshotName ?? 'Transação',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            Formatters.formatDate(t.date),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${isIncome ? '+' : '-'} ${Formatters.formatCurrency(t.value)}',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (index < recent.length - 1)
+                Divider(
+                  height: 1,
+                  indent: 66,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// ─── Month Dropdown ───────────────────────────────────────────────
+
+class _MonthDropdown extends StatelessWidget {
+  final String currentMonthRef;
+  final ValueChanged<String> onChanged;
+
+  const _MonthDropdown({
+    required this.currentMonthRef,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
       onTap: () async {
         final parts = currentMonthRef.split('-');
         DateTime initialDate = DateTime(int.parse(parts[0]), int.parse(parts[1]));
@@ -121,150 +420,64 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           initialDate: initialDate,
           firstDate: DateTime(2020),
           lastDate: DateTime(2100),
-          // Help select just month and year by initialEntryMode
           initialDatePickerMode: DatePickerMode.year,
         );
         if (picked != null) {
           final newMonthRef = '${picked.year}-${picked.month.toString().padLeft(2, '0')}';
-          ref.read(selectedMonthProvider.notifier).update(newMonthRef);
+          onChanged(newMonthRef);
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.calendar_today, size: 20, color: Colors.white70),
-            const SizedBox(width: 8),
-            Text(
-              Formatters.formatMonthRef(currentMonthRef),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const Icon(Icons.arrow_drop_down, color: Colors.white70),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCards(double incomes, double expenses, double balance) {
-    return Column(
-      children: [
-        _buildCard('Saldo Restante', balance, balance >= 0 ? Colors.green : Colors.red, isLarge: true),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _buildCard('Entradas', incomes, Colors.green)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildCard('Saídas', expenses, Colors.red)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCard(String title, double value, Color color, {bool isLarge = false}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
+          const Icon(Icons.calendar_today_rounded, size: 18, color: AppTheme.primary),
+          const SizedBox(width: 10),
           Text(
-            Formatters.formatCurrency(value),
-            style: TextStyle(
-              fontSize: isLarge ? 28 : 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+            Formatters.formatMonthRef(currentMonthRef),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
             ),
           ),
+          const SizedBox(width: 6),
+          const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textTertiary, size: 20),
         ],
       ),
     );
   }
+}
 
-  Widget _buildChart(double incomes, double expenses) {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: PieChart(
-        PieChartData(
-          sectionsSpace: 2,
-          centerSpaceRadius: 60,
-          sections: [
-            if (incomes > 0)
-              PieChartSectionData(
-                color: Colors.green,
-                value: incomes,
-                title: '${((incomes / (incomes + expenses)) * 100).toStringAsFixed(0)}%',
-                radius: 20,
-                titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-            if (expenses > 0)
-              PieChartSectionData(
-                color: Colors.red,
-                value: expenses,
-                title: '${((expenses / (incomes + expenses)) * 100).toStringAsFixed(0)}%',
-                radius: 20,
-                titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+// ─── Legend Dot ────────────────────────────────────────────────────
 
-  Widget _buildRecentTransactions(List<model_transaction.Transaction> transactions) {
-    if (transactions.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(32.0),
-        child: Center(
-          child: Text('Nenhuma transação neste mês.', style: TextStyle(color: Colors.white54)),
-        ),
-      );
-    }
-    
-    final recent = transactions.take(5).toList();
-    
-    return Column(
-      children: recent.map((t) {
-        final isIncome = (t.kind == model_transaction.TransactionKind.entrada && !t.isReversal) || 
-                         (t.kind == model_transaction.TransactionKind.despesa && t.isReversal);
-        final color = isIncome ? Colors.green : Colors.red;
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: color.withOpacity(0.2),
-              child: Icon(
-                isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                color: color,
-              ),
-            ),
-            title: Text(t.title ?? t.categorySnapshotName ?? 'Transação'),
-            subtitle: Text(Formatters.formatDate(t.date)),
-            trailing: Text(
-              Formatters.formatCurrency(t.value),
-              style: TextStyle(fontWeight: FontWeight.bold, color: color),
-            ),
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
           ),
-        );
-      }).toList(),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
-
