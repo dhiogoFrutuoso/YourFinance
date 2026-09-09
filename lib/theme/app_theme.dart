@@ -25,6 +25,33 @@ class AppTheme {
         ),
       ];
 
+  // ─── Backward Compatibility Getters ───────────────────────────────
+  static const Color background = colorCanvas;
+  static const Color surface = colorPaper;
+  static const Color primary = colorPrimary;
+  static const Color textPrimary = colorInk;
+  static const Color textSecondary = colorInkSoft;
+  static const Color textTertiary = Color(0xB3A1A1AA);
+  static const Color textDisabled = Color(0x80A1A1AA);
+  static const Color success = Color(0xFF10B981); // Emerald
+  static const Color error = colorDestructive;
+  static const Color warning = Color(0xFFF59E0B); // Amber
+  
+  static const double cardRadius = containerRadius;
+  static const double modalRadius = containerRadius;
+  
+  static const double glassOpacity = 1.0;
+  static const double glassBorderOpacity = 1.0;
+  static const double glassBlurSigma = 0.0;
+
+  static List<BoxShadow> glowShadow({double blurRadius = 16, double opacity = 0.35, double spreadRadius = 0}) => premiumGlow;
+  
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [colorPrimaryDark, colorPrimary],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+
   // ─── Theme Data ─────────────────────────────────────────────────
   static ThemeData get darkTheme {
     final baseTextTheme = GoogleFonts.interTextTheme(ThemeData.dark().textTheme);
