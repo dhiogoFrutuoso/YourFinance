@@ -1,24 +1,55 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
+import '../providers/planning_provider.dart';
+import '../services/month_manager_service.dart';
+import '../widgets/glass_card.dart';
 
-class MainScaffold extends StatelessWidget {
+class MainScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainScaffold({super.key, required this.navigationShell});
 
   @override
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      MonthManagerService.checkAndApplyRollover(ref);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final monthRef = ref.watch(selectedMonthProvider);
+
     return Scaffold(
-      body: navigationShell,
+      appBar: AppBar(
+        title: _GlobalMonthDropdown(
+          currentMonthRef: monthRef,
+          onChanged: (newMonth) {
+            ref.read(selectedMonthProvider.notifier).update(newMonth);
+          },
+        ),
+        backgroundColor: AppTheme.colorCanvas,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: widget.navigationShell,
       extendBody: true,
       bottomNavigationBar: _FloatingBottomNav(
-        currentIndex: navigationShell.currentIndex,
+        currentIndex: widget.navigationShell.currentIndex,
         onTap: (index) {
-          navigationShell.goBranch(
+          widget.navigationShell.goBranch(
             index,
-            initialLocation: index == navigationShell.currentIndex,
+            initialLocation: index == widget.navigationShell.currentIndex,
           );
         },
       ),
@@ -40,7 +71,6 @@ class _FloatingBottomNav extends StatelessWidget {
     _NavItem(icon: Icons.space_dashboard_outlined, activeIcon: Icons.space_dashboard, label: 'Dash'),
     _NavItem(icon: Icons.list_alt_outlined, activeIcon: Icons.list_alt, label: 'Extrato'),
     _NavItem(icon: Icons.donut_large_outlined, activeIcon: Icons.donut_large, label: 'Status'),
-    _NavItem(icon: Icons.insights_outlined, activeIcon: Icons.insights, label: 'Análises'),
   ];
 
   @override
@@ -148,4 +178,56 @@ class _NavItem {
     required this.activeIcon,
     required this.label,
   });
+}
+
+// ─── Global Month Dropdown ───────────────────────────────────────────────
+
+class _GlobalMonthDropdown extends StatelessWidget {
+  final String currentMonthRef;
+  final ValueChanged<String> onChanged;
+
+  const _GlobalMonthDropdown({
+    required this.currentMonthRef,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final parts = currentMonthRef.split('-');
+        DateTime initialDate = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+        
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initialDate,
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+          initialDatePickerMode: DatePickerMode.year,
+        );
+        if (picked != null) {
+          final newMonthRef = '${picked.year}-${picked.month.toString().padLeft(2, '0')}';
+          onChanged(newMonthRef);
+        }
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.calendar_today_rounded, size: 16, color: AppTheme.colorPrimary),
+          const SizedBox(width: 8),
+          Text(
+            Formatters.formatMonthRef(currentMonthRef),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.colorInk,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.colorInkSoft, size: 18),
+        ],
+      ),
+    );
+  }
 }

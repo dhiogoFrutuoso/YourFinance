@@ -26,10 +26,16 @@ class HiveService {
   }
 
   static List<PlanItem> getPlanItems() {
-    return _planItemsBox.values.map((jsonStr) {
-      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return PlanItem.fromJson(map);
-    }).toList();
+    final List<PlanItem> items = [];
+    for (var jsonStr in _planItemsBox.values) {
+      try {
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        items.add(PlanItem.fromJson(map));
+      } catch (e) {
+        // Ignorar itens corrompidos para garantir que o app continue funcionando
+      }
+    }
+    return items;
   }
 
   static List<PlanItem> getPlanItemsByMonth(String monthRef) {
@@ -45,10 +51,15 @@ class HiveService {
   }
 
   static List<model_transaction.Transaction> getTransactions() {
-    final transactions = _transactionsBox.values.map((jsonStr) {
-      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      return model_transaction.Transaction.fromJson(map);
-    }).toList();
+    final List<model_transaction.Transaction> transactions = [];
+    for (var jsonStr in _transactionsBox.values) {
+      try {
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        transactions.add(model_transaction.Transaction.fromJson(map));
+      } catch (e) {
+        // Ignorar itens corrompidos
+      }
+    }
     transactions.sort((a, b) => b.date.compareTo(a.date)); // Descending order
     return transactions;
   }

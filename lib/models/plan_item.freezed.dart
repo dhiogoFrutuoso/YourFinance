@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PlanItem {
 
- String get id; PlanItemType get type; String get name; String? get description; double get value; DateTime? get dueDate; String get monthRef; DateTime get createdAt; bool? get isInstallment; int? get totalInstallments; DateTime? get expirationDate;
+ String get id; PlanItemType get type; String get name; String? get description; double get value; DateTime? get dueDate; String get monthRef; DateTime get createdAt; bool? get isInstallment; int? get totalInstallments; DateTime? get expirationDate; bool? get isReceivedEarly; String? get customCategoryId;
 /// Create a copy of PlanItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +29,16 @@ $PlanItemCopyWith<PlanItem> get copyWith => _$PlanItemCopyWithImpl<PlanItem>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlanItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.value, value) || other.value == value)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.monthRef, monthRef) || other.monthRef == monthRef)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.isInstallment, isInstallment) || other.isInstallment == isInstallment)&&(identical(other.totalInstallments, totalInstallments) || other.totalInstallments == totalInstallments)&&(identical(other.expirationDate, expirationDate) || other.expirationDate == expirationDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlanItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.value, value) || other.value == value)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.monthRef, monthRef) || other.monthRef == monthRef)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.isInstallment, isInstallment) || other.isInstallment == isInstallment)&&(identical(other.totalInstallments, totalInstallments) || other.totalInstallments == totalInstallments)&&(identical(other.expirationDate, expirationDate) || other.expirationDate == expirationDate)&&(identical(other.isReceivedEarly, isReceivedEarly) || other.isReceivedEarly == isReceivedEarly)&&(identical(other.customCategoryId, customCategoryId) || other.customCategoryId == customCategoryId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,name,description,value,dueDate,monthRef,createdAt,isInstallment,totalInstallments,expirationDate);
+int get hashCode => Object.hash(runtimeType,id,type,name,description,value,dueDate,monthRef,createdAt,isInstallment,totalInstallments,expirationDate,isReceivedEarly,customCategoryId);
 
 @override
 String toString() {
-  return 'PlanItem(id: $id, type: $type, name: $name, description: $description, value: $value, dueDate: $dueDate, monthRef: $monthRef, createdAt: $createdAt, isInstallment: $isInstallment, totalInstallments: $totalInstallments, expirationDate: $expirationDate)';
+  return 'PlanItem(id: $id, type: $type, name: $name, description: $description, value: $value, dueDate: $dueDate, monthRef: $monthRef, createdAt: $createdAt, isInstallment: $isInstallment, totalInstallments: $totalInstallments, expirationDate: $expirationDate, isReceivedEarly: $isReceivedEarly, customCategoryId: $customCategoryId)';
 }
 
 
@@ -49,7 +49,7 @@ abstract mixin class $PlanItemCopyWith<$Res>  {
   factory $PlanItemCopyWith(PlanItem value, $Res Function(PlanItem) _then) = _$PlanItemCopyWithImpl;
 @useResult
 $Res call({
- String id, PlanItemType type, String name, String? description, double value, DateTime? dueDate, String monthRef, DateTime createdAt, bool? isInstallment, int? totalInstallments, DateTime? expirationDate
+ String id, PlanItemType type, String name, String? description, double value, DateTime? dueDate, String monthRef, DateTime createdAt, bool? isInstallment, int? totalInstallments, DateTime? expirationDate, bool? isReceivedEarly, String? customCategoryId
 });
 
 
@@ -66,7 +66,7 @@ class _$PlanItemCopyWithImpl<$Res>
 
 /// Create a copy of PlanItem
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? name = null,Object? description = freezed,Object? value = null,Object? dueDate = freezed,Object? monthRef = null,Object? createdAt = null,Object? isInstallment = freezed,Object? totalInstallments = freezed,Object? expirationDate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? name = null,Object? description = freezed,Object? value = null,Object? dueDate = freezed,Object? monthRef = null,Object? createdAt = null,Object? isInstallment = freezed,Object? totalInstallments = freezed,Object? expirationDate = freezed,Object? isReceivedEarly = freezed,Object? customCategoryId = freezed,}) {
   return _then(PlanItem(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -79,7 +79,9 @@ as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: 
 as DateTime,isInstallment: freezed == isInstallment ? _self.isInstallment : isInstallment // ignore: cast_nullable_to_non_nullable
 as bool?,totalInstallments: freezed == totalInstallments ? _self.totalInstallments : totalInstallments // ignore: cast_nullable_to_non_nullable
 as int?,expirationDate: freezed == expirationDate ? _self.expirationDate : expirationDate // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,isReceivedEarly: freezed == isReceivedEarly ? _self.isReceivedEarly : isReceivedEarly // ignore: cast_nullable_to_non_nullable
+as bool?,customCategoryId: freezed == customCategoryId ? _self.customCategoryId : customCategoryId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -164,10 +166,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate,  bool? isReceivedEarly,  String? customCategoryId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PlanItem() when $default != null:
-return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate);case _:
+return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate,_that.isReceivedEarly,_that.customCategoryId);case _:
   return orElse();
 
 }
@@ -185,10 +187,10 @@ return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate,  bool? isReceivedEarly,  String? customCategoryId)  $default,) {final _that = this;
 switch (_that) {
 case _PlanItem():
-return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate);case _:
+return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate,_that.isReceivedEarly,_that.customCategoryId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +207,10 @@ return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  PlanItemType type,  String name,  String? description,  double value,  DateTime? dueDate,  String monthRef,  DateTime createdAt,  bool? isInstallment,  int? totalInstallments,  DateTime? expirationDate,  bool? isReceivedEarly,  String? customCategoryId)?  $default,) {final _that = this;
 switch (_that) {
 case _PlanItem() when $default != null:
-return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate);case _:
+return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_that.dueDate,_that.monthRef,_that.createdAt,_that.isInstallment,_that.totalInstallments,_that.expirationDate,_that.isReceivedEarly,_that.customCategoryId);case _:
   return null;
 
 }
@@ -220,7 +222,7 @@ return $default(_that.id,_that.type,_that.name,_that.description,_that.value,_th
 @JsonSerializable()
 
 class _PlanItem extends PlanItem {
-  const _PlanItem({required this.id, required this.type, required this.name, this.description, required this.value, this.dueDate, required this.monthRef, required this.createdAt, this.isInstallment, this.totalInstallments, this.expirationDate}): super._();
+  const _PlanItem({required this.id, required this.type, required this.name, this.description, required this.value, this.dueDate, required this.monthRef, required this.createdAt, this.isInstallment, this.totalInstallments, this.expirationDate, this.isReceivedEarly, this.customCategoryId}): super._();
   factory _PlanItem.fromJson(Map<String, dynamic> json) => _$PlanItemFromJson(json);
 
 @override final  String id;
@@ -234,6 +236,8 @@ class _PlanItem extends PlanItem {
 @override final  bool? isInstallment;
 @override final  int? totalInstallments;
 @override final  DateTime? expirationDate;
+@override final  bool? isReceivedEarly;
+@override final  String? customCategoryId;
 
 /// Create a copy of PlanItem
 /// with the given fields replaced by the non-null parameter values.
@@ -248,16 +252,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlanItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.value, value) || other.value == value)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.monthRef, monthRef) || other.monthRef == monthRef)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.isInstallment, isInstallment) || other.isInstallment == isInstallment)&&(identical(other.totalInstallments, totalInstallments) || other.totalInstallments == totalInstallments)&&(identical(other.expirationDate, expirationDate) || other.expirationDate == expirationDate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlanItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.value, value) || other.value == value)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.monthRef, monthRef) || other.monthRef == monthRef)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.isInstallment, isInstallment) || other.isInstallment == isInstallment)&&(identical(other.totalInstallments, totalInstallments) || other.totalInstallments == totalInstallments)&&(identical(other.expirationDate, expirationDate) || other.expirationDate == expirationDate)&&(identical(other.isReceivedEarly, isReceivedEarly) || other.isReceivedEarly == isReceivedEarly)&&(identical(other.customCategoryId, customCategoryId) || other.customCategoryId == customCategoryId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,name,description,value,dueDate,monthRef,createdAt,isInstallment,totalInstallments,expirationDate);
+int get hashCode => Object.hash(runtimeType,id,type,name,description,value,dueDate,monthRef,createdAt,isInstallment,totalInstallments,expirationDate,isReceivedEarly,customCategoryId);
 
 @override
 String toString() {
-  return 'PlanItem(id: $id, type: $type, name: $name, description: $description, value: $value, dueDate: $dueDate, monthRef: $monthRef, createdAt: $createdAt, isInstallment: $isInstallment, totalInstallments: $totalInstallments, expirationDate: $expirationDate)';
+  return 'PlanItem(id: $id, type: $type, name: $name, description: $description, value: $value, dueDate: $dueDate, monthRef: $monthRef, createdAt: $createdAt, isInstallment: $isInstallment, totalInstallments: $totalInstallments, expirationDate: $expirationDate, isReceivedEarly: $isReceivedEarly, customCategoryId: $customCategoryId)';
 }
 
 
@@ -268,7 +272,7 @@ abstract mixin class _$PlanItemCopyWith<$Res> implements $PlanItemCopyWith<$Res>
   factory _$PlanItemCopyWith(_PlanItem value, $Res Function(_PlanItem) _then) = __$PlanItemCopyWithImpl;
 @override @useResult
 $Res call({
- String id, PlanItemType type, String name, String? description, double value, DateTime? dueDate, String monthRef, DateTime createdAt, bool? isInstallment, int? totalInstallments, DateTime? expirationDate
+ String id, PlanItemType type, String name, String? description, double value, DateTime? dueDate, String monthRef, DateTime createdAt, bool? isInstallment, int? totalInstallments, DateTime? expirationDate, bool? isReceivedEarly, String? customCategoryId
 });
 
 
@@ -285,7 +289,7 @@ class __$PlanItemCopyWithImpl<$Res>
 
 /// Create a copy of PlanItem
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? name = null,Object? description = freezed,Object? value = null,Object? dueDate = freezed,Object? monthRef = null,Object? createdAt = null,Object? isInstallment = freezed,Object? totalInstallments = freezed,Object? expirationDate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? name = null,Object? description = freezed,Object? value = null,Object? dueDate = freezed,Object? monthRef = null,Object? createdAt = null,Object? isInstallment = freezed,Object? totalInstallments = freezed,Object? expirationDate = freezed,Object? isReceivedEarly = freezed,Object? customCategoryId = freezed,}) {
   return _then(_PlanItem(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -298,7 +302,9 @@ as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: 
 as DateTime,isInstallment: freezed == isInstallment ? _self.isInstallment : isInstallment // ignore: cast_nullable_to_non_nullable
 as bool?,totalInstallments: freezed == totalInstallments ? _self.totalInstallments : totalInstallments // ignore: cast_nullable_to_non_nullable
 as int?,expirationDate: freezed == expirationDate ? _self.expirationDate : expirationDate // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,isReceivedEarly: freezed == isReceivedEarly ? _self.isReceivedEarly : isReceivedEarly // ignore: cast_nullable_to_non_nullable
+as bool?,customCategoryId: freezed == customCategoryId ? _self.customCategoryId : customCategoryId // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

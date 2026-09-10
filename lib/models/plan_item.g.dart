@@ -22,6 +22,8 @@ _PlanItem _$PlanItemFromJson(Map<String, dynamic> json) => _PlanItem(
   expirationDate: json['expirationDate'] == null
       ? null
       : DateTime.parse(json['expirationDate'] as String),
+  isReceivedEarly: json['isReceivedEarly'] as bool?,
+  customCategoryId: json['customCategoryId'] as String?,
 );
 
 Map<String, dynamic> _$PlanItemToJson(_PlanItem instance) => <String, dynamic>{
@@ -36,11 +38,15 @@ Map<String, dynamic> _$PlanItemToJson(_PlanItem instance) => <String, dynamic>{
   'isInstallment': instance.isInstallment,
   'totalInstallments': instance.totalInstallments,
   'expirationDate': instance.expirationDate?.toIso8601String(),
+  'isReceivedEarly': instance.isReceivedEarly,
+  'customCategoryId': instance.customCategoryId,
 };
 
 const _$PlanItemTypeEnumMap = {
   PlanItemType.entradaFixa: 'entradaFixa',
   PlanItemType.entradaPrevista: 'entradaPrevista',
+  PlanItemType.entradaVariavel: 'entradaVariavel',
   PlanItemType.despesaObrigatoria: 'despesaObrigatoria',
   PlanItemType.despesaPrevista: 'despesaPrevista',
+  PlanItemType.despesaVariavelObrigatoria: 'despesaVariavelObrigatoria',
 };

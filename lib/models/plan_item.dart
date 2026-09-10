@@ -6,8 +6,10 @@ part 'plan_item.g.dart';
 enum PlanItemType { 
   entradaFixa, 
   entradaPrevista, 
+  entradaVariavel,
   despesaObrigatoria, 
-  despesaPrevista 
+  despesaPrevista,
+  despesaVariavelObrigatoria
 }
 
 @freezed
@@ -25,6 +27,8 @@ abstract class PlanItem with _$PlanItem {
     bool? isInstallment,
     int? totalInstallments,
     DateTime? expirationDate,
+    bool? isReceivedEarly,
+    String? customCategoryId,
   }) = _PlanItem;
 
   factory PlanItem.fromJson(Map<String, dynamic> json) => _$PlanItemFromJson(json);

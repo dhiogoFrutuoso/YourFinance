@@ -5,7 +5,7 @@ import 'screens/planning_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transactions_screen.dart';
 import 'screens/status_screen.dart';
-import 'screens/analysis_screen.dart';
+
 import 'screens/settings_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -51,14 +51,7 @@ final goRouter = GoRouter(
             ),
           ],
         ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/analysis',
-              builder: (context, state) => const AnalysisScreen(),
-            ),
-          ],
-        ),
+
       ],
     ),
     GoRoute(

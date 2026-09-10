@@ -25,6 +25,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   final Set<String> _activeFilters = {};
   bool _sortByDateDesc = true;
   bool _searchExpanded = false;
+  DateTimeRange? _filterDateRange;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +39,13 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         if (!title.contains(query) && !value.contains(query)) {
           return false;
         }
+      }
+      
+      if (_filterDateRange != null) {
+        final d = DateTime(t.date.year, t.date.month, t.date.day);
+        final start = DateTime(_filterDateRange!.start.year, _filterDateRange!.start.month, _filterDateRange!.start.day);
+        final end = DateTime(_filterDateRange!.end.year, _filterDateRange!.end.month, _filterDateRange!.end.day);
+        if (d.isBefore(start) || d.isAfter(end)) return false;
       }
       
       if (_activeFilters.isNotEmpty) {
@@ -86,6 +94,35 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       color: AppTheme.textSecondary,
                     ),
                     onPressed: () => setState(() => _sortByDateDesc = !_sortByDateDesc),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _filterDateRange != null ? Icons.filter_alt_rounded : Icons.filter_alt_outlined,
+                      color: _filterDateRange != null ? AppTheme.primary : AppTheme.textSecondary,
+                    ),
+                    onPressed: () async {
+                      final picked = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        initialDateRange: _filterDateRange,
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.dark(
+                                primary: AppTheme.primary,
+                                surface: AppTheme.surface,
+                                onSurface: AppTheme.textPrimary,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setState(() => _filterDateRange = picked);
+                      }
+                    },
                   ),
                   IconButton(
                     icon: AnimatedSwitcher(
@@ -138,8 +175,33 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  'Entrada', 'Despesa', 'Dinheiro', 'Pix', 'Cartão',
-                ].map((f) {
+                  if (_filterDateRange != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _filterDateRange = null),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppTheme.primary),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${Formatters.formatDate(_filterDateRange!.start)} - ${Formatters.formatDate(_filterDateRange!.end)}',
+                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.primary),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.close_rounded, size: 14, color: AppTheme.primary),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ...['Entrada', 'Despesa', 'Dinheiro', 'Pix', 'Cartão'].map((f) {
                   final isActive = _activeFilters.contains(f);
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -176,6 +238,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     ),
                   );
                 }).toList(),
+                ],
               ),
             ),
             const SizedBox(height: 8),
@@ -218,7 +281,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 72),
+        padding: const EdgeInsets.only(bottom: 90.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -573,8 +636,15 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
   Widget build(BuildContext context) {
     ref.watch(selectedMonthProvider);
     final plannedItems = ref.watch(planningProvider);
+    final transactions = ref.watch(transactionsProvider);
     
-    final categoryOptions = widget.isIncome ? <PlanItem>[] : plannedItems.where((i) => i.type == PlanItemType.despesaObrigatoria).toList();
+    final totalIncomes = transactions.where((t) => t.kind == model_transaction.TransactionKind.entrada && !t.isReversal).fold(0.0, (sum, t) => sum + t.value);
+    final totalExpenses = transactions.where((t) => t.kind == model_transaction.TransactionKind.despesa && !t.isReversal).fold(0.0, (sum, t) => sum + t.value);
+    final currentBalance = totalIncomes - totalExpenses;
+    
+    final categoryOptions = widget.isIncome
+        ? plannedItems.where((i) => i.type == PlanItemType.entradaFixa || i.type == PlanItemType.entradaPrevista || i.type == PlanItemType.entradaVariavel).toList()
+        : plannedItems.where((i) => i.type == PlanItemType.despesaObrigatoria || i.type == PlanItemType.despesaVariavelObrigatoria || i.type == PlanItemType.despesaPrevista).toList();
 
     if (widget.transactionToEdit != null && _selectedPlanItem == null && widget.transactionToEdit!.planItemId != null) {
       try {
@@ -583,6 +653,7 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
     }
 
     final accentColor = widget.isIncome ? AppTheme.success : AppTheme.error;
+    double bottomBarClearance = 100.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -594,10 +665,10 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + bottomBarClearance,
         ),
         child: Form(
           key: _formKey,
@@ -644,6 +715,66 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 8),
+                
+                // Painel de Contexto Reativo
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _valueController,
+                  builder: (context, value, child) {
+                    final inputValue = double.tryParse(value.text.replaceAll(',', '.')) ?? 0.0;
+                    final projectedBalance = widget.isIncome 
+                        ? currentBalance + inputValue 
+                        : currentBalance - inputValue;
+                        
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.05)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Saldo Atual:', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary)),
+                              Text(Formatters.formatCurrency(currentBalance), style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Após ${widget.isIncome ? 'recebimento' : 'pagamento'}:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                              Text(
+                                Formatters.formatCurrency(projectedBalance), 
+                                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: projectedBalance >= 0 ? AppTheme.success : AppTheme.error)
+                              ),
+                            ],
+                          ),
+                          if (_selectedPlanItem != null && _selectedPlanItem!.type == PlanItemType.despesaVariavelObrigatoria) ...[
+                            const SizedBox(height: 8),
+                            Builder(
+                              builder: (context) {
+                                final plan = _selectedPlanItem!;
+                                final realized = transactions
+                                  .where((t) => t.planItemId == plan.id && !t.isReversal && t.date.month == _date.month && t.date.year == _date.year)
+                                  .fold(0.0, (s,t) => s+t.value);
+                                final remaining = (plan.value - realized - inputValue).clamp(0.0, double.infinity);
+                                return Text(
+                                  'Falta ${Formatters.formatCurrency(remaining)} para atingir o limite desta categoria.',
+                                  style: GoogleFonts.inter(fontSize: 12, color: remaining > 0 ? AppTheme.textTertiary : AppTheme.error),
+                                );
+                              }
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 16),
 
                 // Date
@@ -675,6 +806,8 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
                   value: _paymentMethod,
                   decoration: const InputDecoration(labelText: 'Meio de Pagamento'),
                   dropdownColor: AppTheme.surface,
+                  menuMaxHeight: 250,
+                  borderRadius: BorderRadius.circular(16),
                   items: model_transaction.PaymentMethod.values.map((m) {
                     return DropdownMenuItem(
                       value: m,
@@ -687,34 +820,34 @@ class _AddTransactionSheetState extends ConsumerState<_AddTransactionSheet> {
                 ),
                 const SizedBox(height: 16),
 
-                // Category (for expenses)
-                if (!widget.isIncome) ...[
-                  DropdownButtonFormField<PlanItem?>(
-                    value: _selectedPlanItem,
-                    decoration: const InputDecoration(labelText: 'Categoria (Vínculo)'),
-                    dropdownColor: AppTheme.surface,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Despesa Adicional (Não planejada)'),
-                      ),
-                      ...categoryOptions.map((c) => DropdownMenuItem(
-                        value: c,
-                        child: Text(c.name),
-                      ))
-                    ],
-                    onChanged: (v) {
-                      setState(() => _selectedPlanItem = v);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  if (_selectedPlanItem == null)
-                    NeonTextField(
-                      controller: _titleController,
-                      labelText: 'Título da Despesa',
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Título é obrigatório para despesas adicionais' : null,
+                // Category (Vínculo)
+                DropdownButtonFormField<PlanItem?>(
+                  value: _selectedPlanItem,
+                  decoration: const InputDecoration(labelText: 'Categoria (Vínculo)'),
+                  dropdownColor: AppTheme.surface,
+                  menuMaxHeight: 250,
+                  borderRadius: BorderRadius.circular(16),
+                  items: [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text(widget.isIncome ? 'Entrada Adicional (Não planejada)' : 'Despesa Adicional (Não planejada)'),
                     ),
-                ],
+                    ...categoryOptions.map((c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(c.name),
+                    ))
+                  ],
+                  onChanged: (v) {
+                    setState(() => _selectedPlanItem = v);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_selectedPlanItem == null)
+                  NeonTextField(
+                    controller: _titleController,
+                    labelText: widget.isIncome ? 'Título da Entrada' : 'Título da Despesa',
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Título é obrigatório' : null,
+                  ),
                 const SizedBox(height: 28),
 
                 // Save button

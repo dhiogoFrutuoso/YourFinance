@@ -6,10 +6,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
+import '../models/plan_item.dart';
 import '../utils/formatters.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/quick_stat_card.dart';
+import '../widgets/timeline_widget.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -23,6 +25,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionsProvider);
     final monthRef = ref.watch(selectedMonthProvider);
+    final plannedItems = ref.watch(planningProvider);
 
     // Filter transactions for current month
     final currentMonthTransactions = transactions.where((t) {
@@ -57,6 +60,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final balance = totalIncomes - totalExpenses;
     final total = totalIncomes + totalExpenses;
     final spentPercentage = totalIncomes > 0 ? ((totalExpenses / totalIncomes) * 100).clamp(0, 999) : 0.0;
+
+    final currentMonthPlans = plannedItems.where((i) {
+      if (!i.isInstallment! && i.monthRef != monthRef) return false;
+      if (i.expirationDate != null) {
+        final currentMonthParts = monthRef.split('-');
+        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
+        if (currentMonthDate.isAfter(i.expirationDate!)) return false;
+      }
+      if (i.isInstallment!) {
+        final currentMonthParts = monthRef.split('-');
+        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
+        final startMonthParts = i.monthRef.split('-');
+        final startMonthDate = DateTime(int.parse(startMonthParts[0]), int.parse(startMonthParts[1]));
+        if (currentMonthDate.isBefore(startMonthDate)) return false;
+        final diffMonths = (currentMonthDate.year - startMonthDate.year) * 12 + currentMonthDate.month - startMonthDate.month;
+        if (diffMonths >= (i.totalInstallments ?? 1)) return false;
+      }
+      return true;
+    }).toList();
+
+    double plannedIncomes = currentMonthPlans
+        .where((i) => i.type == PlanItemType.entradaFixa || i.type == PlanItemType.entradaPrevista || i.type == PlanItemType.entradaVariavel)
+        .fold(0.0, (sum, i) => sum + i.value);
+    double alreadyReceived = currentMonthTransactions
+        .where((t) => t.kind == model_transaction.TransactionKind.entrada && t.planItemId != null && !t.isReversal)
+        .fold(0.0, (sum, t) => sum + t.value);
+    double totalToReceive = (plannedIncomes - alreadyReceived).clamp(0.0, double.infinity);
+
+    double mandatoryToSpend = currentMonthPlans
+        .where((i) => i.type == PlanItemType.despesaObrigatoria || i.type == PlanItemType.despesaVariavelObrigatoria)
+        .fold(0.0, (sum, i) => sum + i.value);
+
+    double alreadyPaidMandatory = currentMonthTransactions
+        .where((t) {
+          if (t.kind != model_transaction.TransactionKind.despesa || t.planItemId == null || t.isReversal) return false;
+          final plan = currentMonthPlans.firstWhere((p) => p.id == t.planItemId, orElse: () => PlanItem(id: '', type: PlanItemType.despesaPrevista, name: '', value: 0, monthRef: '', createdAt: DateTime.now()));
+          return plan.type == PlanItemType.despesaObrigatoria || plan.type == PlanItemType.despesaVariavelObrigatoria;
+        })
+        .fold(0.0, (sum, t) => sum + t.value);
+
+    double spentOnAdditionals = currentMonthTransactions
+        .where((t) {
+          if (t.kind != model_transaction.TransactionKind.despesa || t.isReversal) return false;
+          if (t.planItemId == null) return true;
+          final plan = currentMonthPlans.firstWhere((p) => p.id == t.planItemId, orElse: () => PlanItem(id: '', type: PlanItemType.despesaPrevista, name: '', value: 0, monthRef: '', createdAt: DateTime.now()));
+          return plan.type == PlanItemType.despesaPrevista;
+        })
+        .fold(0.0, (sum, t) => sum + t.value);
+
+    double plannedAdditionals = currentMonthPlans
+        .where((i) => i.type == PlanItemType.despesaPrevista)
+        .fold(0.0, (sum, i) => sum + i.value);
+
+    double rolloverMoney = currentMonthTransactions
+        .where((t) => !t.isReversal && (t.title == 'Saldo Mês Anterior' || t.title == 'Saldo Anterior Acumulado' || t.title == 'Saldo do Mês Anterior'))
+        .fold(0.0, (sum, t) => sum + t.value);
+
+    double leftToPay = (mandatoryToSpend - alreadyPaidMandatory).clamp(0.0, double.infinity);
+    double totalNaoGasto = (totalToReceive + alreadyReceived) - totalExpenses;
 
     return Scaffold(
       body: SafeArea(
@@ -117,14 +179,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ─── Month Selector (Dropdown elegante) ───
-              _MonthDropdown(
-                currentMonthRef: monthRef,
-                onChanged: (newMonth) {
-                  ref.read(selectedMonthProvider.notifier).update(newMonth);
-                },
-              ),
-              const SizedBox(height: 28),
+
 
               // ─── Big Number Display ───
               GlassCard(
@@ -157,28 +212,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ─── Quick Stat Row ───
-              Row(
+              // ─── Grid Analítico Preditivo ───
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.5,
                 children: [
-                  Expanded(
-                    child: QuickStatCard(
-                      label: 'Entradas',
-                      value: Formatters.formatCurrency(totalIncomes),
-                      icon: Icons.arrow_upward_rounded,
-                      color: AppTheme.success,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: QuickStatCard(
-                      label: 'Saídas',
-                      value: Formatters.formatCurrency(totalExpenses),
-                      icon: Icons.arrow_downward_rounded,
-                      color: AppTheme.error,
-                    ),
+                  QuickStatCard(label: 'Total a Receber', value: Formatters.formatCurrency(totalToReceive), icon: Icons.download_rounded, color: AppTheme.success),
+                  QuickStatCard(label: 'Obrigatório a Gastar', value: Formatters.formatCurrency(mandatoryToSpend), icon: Icons.warning_amber_rounded, color: AppTheme.error),
+                  QuickStatCard(label: 'Já Pago (Fixas)', value: Formatters.formatCurrency(alreadyPaidMandatory), icon: Icons.check_circle_outline_rounded, color: AppTheme.primary),
+                  QuickStatCard(label: 'Gasto Adicional', value: Formatters.formatCurrency(spentOnAdditionals), icon: Icons.receipt_long_rounded, color: Colors.orange),
+                  QuickStatCard(label: 'Adicionais Previstas', value: Formatters.formatCurrency(plannedAdditionals), icon: Icons.lightbulb_outline_rounded, color: Colors.amber),
+                  QuickStatCard(label: 'Sobra Anterior', value: Formatters.formatCurrency(rolloverMoney), icon: Icons.history_rounded, color: AppTheme.textSecondary),
+                  QuickStatCard(label: 'Falta Pagar no Mês', value: Formatters.formatCurrency(leftToPay), icon: Icons.schedule_rounded, color: AppTheme.error),
+                  QuickStatCard(
+                    label: 'Total Não Gasto (Livre)', 
+                    value: Formatters.formatCurrency(totalNaoGasto), 
+                    icon: Icons.savings_rounded, 
+                    color: AppTheme.success,
+                    subtitle1: 'Já recebido: ${Formatters.formatCurrency(alreadyReceived)}',
+                    subtitle2: 'A receber: ${Formatters.formatCurrency(totalToReceive)}',
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
+
+              // ─── Linha do Tempo Preditiva ───
+              TimelineWidget(currentBalance: balance),
               const SizedBox(height: 24),
 
               // ─── Donut Chart ───
@@ -277,7 +340,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      context.go('/transactions');
+                    },
                     child: Text(
                       'Ver todas',
                       style: GoogleFonts.inter(
@@ -397,57 +462,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
-// ─── Month Dropdown ───────────────────────────────────────────────
-
-class _MonthDropdown extends StatelessWidget {
-  final String currentMonthRef;
-  final ValueChanged<String> onChanged;
-
-  const _MonthDropdown({
-    required this.currentMonthRef,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      onTap: () async {
-        final parts = currentMonthRef.split('-');
-        DateTime initialDate = DateTime(int.parse(parts[0]), int.parse(parts[1]));
-        
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: initialDate,
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2100),
-          initialDatePickerMode: DatePickerMode.year,
-        );
-        if (picked != null) {
-          final newMonthRef = '${picked.year}-${picked.month.toString().padLeft(2, '0')}';
-          onChanged(newMonthRef);
-        }
-      },
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.calendar_today_rounded, size: 18, color: AppTheme.primary),
-          const SizedBox(width: 10),
-          Text(
-            Formatters.formatMonthRef(currentMonthRef),
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(width: 6),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textTertiary, size: 20),
-        ],
-      ),
-    );
-  }
-}
 
 // ─── Legend Dot ────────────────────────────────────────────────────
 

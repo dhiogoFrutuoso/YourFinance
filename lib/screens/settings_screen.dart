@@ -102,8 +102,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   iconColor: AppTheme.primary,
                   title: 'Importar Backup',
                   subtitle: 'Restaurar dados a partir de um JSON',
-                  onTap: () {
-                    SnackBarUtils.showSuccess(context, 'Funcionalidade de importar requer selecionar arquivo JSON.');
+                  onTap: () async {
+                    try {
+                      await BackupService.importBackup();
+                      if (mounted) {
+                        SnackBarUtils.showSuccess(context, 'Backup restaurado com sucesso! Reinicie o app para ver os dados.');
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        SnackBarUtils.showError(context, 'Erro ao importar backup. Verifique se o arquivo é válido.');
+                      }
+                    }
                   },
                 ),
               ],

@@ -50,7 +50,9 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     double totalExpenses = 0;
 
     for (var item in items) {
-      if (item.type == PlanItemType.entradaFixa || item.type == PlanItemType.entradaPrevista) {
+      if (item.type == PlanItemType.entradaFixa || 
+          item.type == PlanItemType.entradaPrevista || 
+          item.type == PlanItemType.entradaVariavel) {
         totalIncomes += item.value;
       } else {
         totalExpenses += item.value;
@@ -64,7 +66,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
         slivers: [
           // ─── SliverAppBar with Hero Card ───
           SliverAppBar(
-            expandedHeight: 220,
+            expandedHeight: 280,
             floating: false,
             pinned: true,
             backgroundColor: AppTheme.background,
@@ -167,15 +169,18 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
             ),
         ],
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: AppTheme.glowShadow(blurRadius: 20, opacity: 0.4),
-        ),
-        child: FloatingActionButton(
-          onPressed: () => _showAddItemModal(context, monthRef),
-          backgroundColor: AppTheme.primary,
-          child: const Icon(Icons.add_rounded, size: 28),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 90.0),
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: AppTheme.glowShadow(blurRadius: 20, opacity: 0.4),
+          ),
+          child: FloatingActionButton(
+            onPressed: () => _showAddItemModal(context, monthRef),
+            backgroundColor: AppTheme.primary,
+            child: const Icon(Icons.add_rounded, size: 28),
+          ),
         ),
       ),
     );
@@ -243,21 +248,22 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 16),
           Divider(color: Colors.white.withOpacity(0.08)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(
-                  label: 'Receitas',
-                  value: Formatters.formatCurrency(incomes),
-                  color: AppTheme.success,
-                  icon: Icons.arrow_upward_rounded,
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MiniStat(
+                    label: 'Receitas',
+                    value: Formatters.formatCurrency(incomes),
+                    color: AppTheme.success,
+                    icon: Icons.arrow_upward_rounded,
+                  ),
                 ),
-              ),
-              Container(
-                width: 1,
-                height: 36,
-                color: Colors.white.withOpacity(0.08),
-              ),
+                Container(
+                  width: 1,
+                  height: double.infinity,
+                  color: Colors.white.withOpacity(0.08),
+                ),
               Expanded(
                 child: _MiniStat(
                   label: 'Despesas',
@@ -267,6 +273,7 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ],
       ),
@@ -307,12 +314,15 @@ class _MiniStat extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: color,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -337,7 +347,9 @@ class _PlanItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isIncome = item.type == PlanItemType.entradaFixa || item.type == PlanItemType.entradaPrevista;
+    final isIncome = item.type == PlanItemType.entradaFixa || 
+                     item.type == PlanItemType.entradaPrevista || 
+                     item.type == PlanItemType.entradaVariavel;
     final color = isIncome ? AppTheme.success : AppTheme.error;
 
     String installmentText = '';
@@ -388,7 +400,7 @@ class _PlanItemCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         item.expirationDate != null
-                          ? 'Válido até: ${Formatters.formatDate(item.expirationDate!)}'
+                          ? '${isIncome ? 'Recebe em' : 'Vence em'}: ${Formatters.formatDate(item.expirationDate!)}'
                           : (item.description?.isNotEmpty == true ? item.description! : _getTypeName(item.type)),
                         style: GoogleFonts.inter(
                           fontSize: 12,
@@ -437,7 +449,7 @@ class _PlanItemCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Temporário',
+                  '${isIncome ? 'Recebimento' : 'Vencimento'}: ${item.expirationDate!.day.toString().padLeft(2, '0')}/${item.expirationDate!.month.toString().padLeft(2, '0')}',
                   style: GoogleFonts.inter(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
@@ -458,8 +470,12 @@ class _PlanItemCard extends StatelessWidget {
         return Icons.account_balance_wallet_rounded;
       case PlanItemType.entradaPrevista:
         return Icons.trending_up_rounded;
+      case PlanItemType.entradaVariavel:
+        return Icons.rocket_launch_rounded;
       case PlanItemType.despesaObrigatoria:
         return Icons.receipt_long_rounded;
+      case PlanItemType.despesaVariavelObrigatoria:
+        return Icons.shopping_basket_rounded;
       case PlanItemType.despesaPrevista:
         return Icons.shopping_cart_rounded;
     }
@@ -471,8 +487,12 @@ class _PlanItemCard extends StatelessWidget {
         return 'Entrada Fixa';
       case PlanItemType.entradaPrevista:
         return 'Entrada Prevista';
+      case PlanItemType.entradaVariavel:
+        return 'Entrada Variável';
       case PlanItemType.despesaObrigatoria:
         return 'Despesa Obrigatória';
+      case PlanItemType.despesaVariavelObrigatoria:
+        return 'Despesa Variável Obrigatória';
       case PlanItemType.despesaPrevista:
         return 'Despesa Prevista';
     }
@@ -529,6 +549,7 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
 
   @override
   Widget build(BuildContext context) {
+    double bottomBarClearance = 100.0;
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surface.withOpacity(0.95),
@@ -539,10 +560,10 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
       ),
       child: Padding(
         padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + bottomBarClearance,
         ),
         child: Form(
           key: _formKey,
@@ -646,7 +667,11 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                   },
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Data de Validade (Opcional)',
+                      labelText: (_type == PlanItemType.entradaFixa || 
+                                  _type == PlanItemType.entradaPrevista || 
+                                  _type == PlanItemType.entradaVariavel) 
+                                 ? 'Data de Recebimento (Opcional)' 
+                                 : 'Data de Vencimento/Validade (Opcional)',
                       suffixIcon: _expirationDate != null 
                         ? IconButton(
                             icon: const Icon(Icons.clear_rounded, color: AppTheme.textTertiary),
@@ -714,8 +739,12 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
         return 'Entrada Fixa';
       case PlanItemType.entradaPrevista:
         return 'Entrada Prevista';
+      case PlanItemType.entradaVariavel:
+        return 'Entrada Variável';
       case PlanItemType.despesaObrigatoria:
         return 'Despesa Obrigatória';
+      case PlanItemType.despesaVariavelObrigatoria:
+        return 'Despesa Variável Obrigatória';
       case PlanItemType.despesaPrevista:
         return 'Despesa Adicional Prevista';
     }

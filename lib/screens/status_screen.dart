@@ -21,7 +21,7 @@ class StatusScreen extends ConsumerWidget {
 
     // Get mandatory expenses for the current month context
     final mandatoryExpenses = plannedItems.where((i) {
-      if (i.type != PlanItemType.despesaObrigatoria) return false;
+      if (i.type != PlanItemType.despesaObrigatoria && i.type != PlanItemType.despesaVariavelObrigatoria) return false;
       
       if (!i.isInstallment! && i.monthRef != monthRef) return false;
       if (i.expirationDate != null) {
@@ -42,6 +42,13 @@ class StatusScreen extends ConsumerWidget {
       return true;
     }).toList();
 
+    // Get planned incomes for the current month context
+    final plannedIncomes = plannedItems.where((i) {
+      if (i.type != PlanItemType.entradaFixa && i.type != PlanItemType.entradaPrevista && i.type != PlanItemType.entradaVariavel) return false;
+      if (!i.isInstallment! && i.monthRef != monthRef) return false;
+      return true;
+    }).toList();
+
     // Transactions for the current month
     final currentMonthTransactions = transactions.where((t) {
       final tMonthRef = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}';
@@ -58,7 +65,7 @@ class StatusScreen extends ConsumerWidget {
     // Required incomes based on planned expenses
     double requiredIncomes = 0;
     for (var p in plannedItems) {
-      if (p.type == PlanItemType.despesaObrigatoria || p.type == PlanItemType.despesaPrevista) {
+      if (p.type == PlanItemType.despesaObrigatoria || p.type == PlanItemType.despesaVariavelObrigatoria || p.type == PlanItemType.despesaPrevista) {
         requiredIncomes += p.value;
       }
     }
@@ -69,16 +76,24 @@ class StatusScreen extends ConsumerWidget {
     // Count paid
     int paidCount = 0;
     for (var expense in mandatoryExpenses) {
-      final isPaid = currentMonthTransactions.any(
-        (t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa,
-      );
-      if (isPaid) paidCount++;
+      if (expense.type == PlanItemType.despesaVariavelObrigatoria) {
+        final spentSoFar = currentMonthTransactions
+          .where((t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa && !t.isReversal)
+          .fold(0.0, (sum, t) => sum + t.value);
+        if (spentSoFar >= expense.value) paidCount++;
+      } else {
+        final isPaid = currentMonthTransactions.any(
+          (t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa,
+        );
+        if (isPaid) paidCount++;
+      }
     }
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
             // ─── Header ───
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -218,6 +233,119 @@ class StatusScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
+            // ─── Flexible Income Goals Header ───
+            if (plannedIncomes.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.rocket_launch_rounded, size: 20, color: AppTheme.success),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Metas de Arrecadação',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // ─── Flexible Income Goals List ───
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                itemCount: plannedIncomes.length,
+                itemBuilder: (context, index) {
+                  final goal = plannedIncomes[index];
+                  final totalEarned = currentMonthTransactions
+                      .where((t) => t.planItemId == goal.id && t.kind == model_transaction.TransactionKind.entrada && !t.isReversal)
+                      .fold(0.0, (sum, t) => sum + t.value);
+                  final goalProgress = (totalEarned / (goal.value > 0 ? goal.value : 1)).clamp(0.0, 1.0);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GlassCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                goal.name,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                '${(goalProgress * 100).toStringAsFixed(0)}%',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Stack(
+                              children: [
+                                Container(
+                                  height: 8,
+                                  color: Colors.white.withOpacity(0.06),
+                                ),
+                                FractionallySizedBox(
+                                  widthFactor: goalProgress,
+                                  child: Container(
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.success,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                Formatters.formatCurrency(totalEarned),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.success,
+                                ),
+                              ),
+                              Text(
+                                Formatters.formatCurrency(goal.value),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppTheme.textTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+
             // ─── Checklist Header ───
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -239,9 +367,10 @@ class StatusScreen extends ConsumerWidget {
             const SizedBox(height: 12),
 
             // ─── Checklist ───
-            Expanded(
-              child: mandatoryExpenses.isEmpty
-                  ? Center(
+            mandatoryExpenses.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 40, bottom: 100),
+                    child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -254,26 +383,85 @@ class StatusScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                      itemCount: mandatoryExpenses.length,
-                      itemBuilder: (context, index) {
-                        final expense = mandatoryExpenses[index];
-                        final isPaid = currentMonthTransactions.any(
-                          (t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa,
-                        );
-
-                        return _ChecklistItem(
-                          expense: expense,
-                          isPaid: isPaid,
-                          index: index,
-                        );
-                      },
                     ),
-            ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                    itemCount: mandatoryExpenses.length,
+                    itemBuilder: (context, index) {
+                      final expense = mandatoryExpenses[index];
+                      
+                      if (expense.type == PlanItemType.despesaVariavelObrigatoria) {
+                        final fractions = currentMonthTransactions.where(
+                            (t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa && !t.isReversal
+                        ).toList();
+                        
+                        final spentSoFar = fractions.fold(0.0, (sum, t) => sum + t.value);
+                        final progress = (spentSoFar / (expense.value > 0 ? expense.value : 1)).clamp(0.0, 1.0);
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: GlassCard(
+                            padding: EdgeInsets.zero,
+                            child: Theme(
+                              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                              child: ExpansionTile(
+                                title: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(expense.name, style: GoogleFonts.inter(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text('${(progress * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(color: progress > 0.9 ? AppTheme.error : AppTheme.primary, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: Colors.white.withOpacity(0.06), color: progress > 0.9 ? AppTheme.error : AppTheme.primary),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('${Formatters.formatCurrency(spentSoFar)} de ${Formatters.formatCurrency(expense.value)}', style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textTertiary)),
+                                  ],
+                                ),
+                                children: [
+                                  if (fractions.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Text('Nenhum gasto registrado.', style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textTertiary)),
+                                    ),
+                                  ...fractions.map((f) => ListTile(
+                                    title: Text(f.title ?? 'Fração', style: GoogleFonts.inter(fontSize: 12)),
+                                    trailing: Text(Formatters.formatCurrency(f.value), style: GoogleFonts.inter(fontSize: 12, color: AppTheme.error)),
+                                  )).toList(),
+                                  TextButton(
+                                    onPressed: () { /* TODO Encerrar */ },
+                                    child: Text('Encerrar Categoria neste mês', style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final isPaid = currentMonthTransactions.any(
+                        (t) => t.planItemId == expense.id && t.kind == model_transaction.TransactionKind.despesa,
+                      );
+
+                      return _ChecklistItem(
+                        expense: expense,
+                        isPaid: isPaid,
+                        index: index,
+                      );
+                    },
+                  ),
           ],
         ),
+      ),
       ),
     );
   }

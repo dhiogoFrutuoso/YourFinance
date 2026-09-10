@@ -10,6 +10,8 @@ class QuickStatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final String? subtitle1;
+  final String? subtitle2;
 
   const QuickStatCard({
     super.key,
@@ -17,6 +19,8 @@ class QuickStatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.subtitle1,
+    this.subtitle2,
   });
 
   @override
@@ -38,45 +42,68 @@ class QuickStatCard extends StatelessWidget {
               width: 1,
             ),
           ),
-          child: Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Icon with translucent circle background
               Container(
-                width: 42,
-                height: 42,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: color.withOpacity(0.12),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: 18),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      value,
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+              if (subtitle1 != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle1!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    color: AppTheme.textTertiary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+              if (subtitle2 != null) ...[
+                const SizedBox(height: 1),
+                Text(
+                  subtitle2!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    color: AppTheme.textTertiary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
