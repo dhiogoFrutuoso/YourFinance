@@ -1,7 +1,6 @@
 import '../providers/settings_provider.dart';
 import '../providers/targets_provider.dart';
 import 'reports_screen.dart';
-import '../services/finance_math.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -9,7 +8,8 @@ import 'package:go_router/go_router.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
-import '../models/plan_item.dart';
+import '../services/dashboard_summary.dart';
+import '../widgets/dashboard_details_sheet.dart';
 import '../utils/formatters.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
@@ -40,73 +40,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final hidden = ref.watch(settingsProvider).hideAmounts;
     String money(double value) =>
         hidden ? '••••' : Formatters.formatCurrency(value);
-    final cashRows = currentMonthTransactions
-        .where((t) => !FinanceMath.isRollover(t))
-        .toList();
-    double totalIncomes = 0, totalExpenses = 0;
-    for (final t in cashRows) {
-      if ((!t.isReversal &&
-              t.kind == model_transaction.TransactionKind.entrada) ||
-          (t.isReversal &&
-              t.kind == model_transaction.TransactionKind.despesa)) {
-        totalIncomes += t.isReversal ? -t.value : t.value;
-      } else {
-        totalExpenses += t.isReversal ? -t.value : t.value;
-      }
-    }
-    final endOfMonth = DateTime.parse('$monthRef-01');
-    final nextMonth = DateTime(endOfMonth.year, endOfMonth.month + 1);
-    final balance = FinanceMath.balance(
-      transactions.where((t) => t.date.isBefore(nextMonth)),
-    );
+    final summary = DashboardSummary(transactions, plannedItems, monthRef);
+    final totalIncomes = DashboardEntry.total(summary.received);
+    final totalExpenses = DashboardEntry.total(summary.expenses);
+    final balance = DashboardEntry.total(summary.balance);
     final total =
         totalIncomes.clamp(0, double.infinity) +
         totalExpenses.clamp(0, double.infinity);
     final spentPercentage = totalIncomes > 0
         ? (totalExpenses / totalIncomes * 100).clamp(0, 999)
         : 0.0;
-    final currentMonthPlans = plannedItems;
-    final incomePlans = currentMonthPlans.where(FinanceMath.isIncome);
-    final mandatory = currentMonthPlans.where(
-      (p) =>
-          p.type == PlanItemType.despesaObrigatoria ||
-          p.type == PlanItemType.despesaVariavelObrigatoria,
+    void details(
+      String title,
+      String description,
+      List<DashboardEntry> entries,
+    ) => showDashboardDetails(
+      context,
+      title: title,
+      month: monthRef,
+      description: description,
+      entries: entries,
     );
-    final alreadyReceived = incomePlans.fold(
-      0.0,
-      (s, p) => s + FinanceMath.realized(p, currentMonthTransactions),
+    Widget stat(
+      String label,
+      IconData icon,
+      Color color,
+      List<DashboardEntry> entries,
+      String description, {
+      String? subtitle,
+    }) => QuickStatCard(
+      key: ValueKey(label),
+      label: label,
+      value: money(DashboardEntry.total(entries)),
+      icon: icon,
+      color: color,
+      subtitle1: subtitle,
+      onTap: () => details(label, description, entries),
     );
-    final totalToReceive = incomePlans.fold(
-      0.0,
-      (s, p) =>
-          s +
-          (p.value - FinanceMath.realized(p, currentMonthTransactions)).clamp(
-            0,
-            double.infinity,
-          ),
-    );
-    final mandatoryToSpend = mandatory.fold(0.0, (s, p) => s + p.value);
-    final alreadyPaidMandatory = mandatory.fold(
-      0.0,
-      (s, p) => s + FinanceMath.realized(p, currentMonthTransactions),
-    );
-    final plannedAdditionals = currentMonthPlans
-        .where((p) => p.type == PlanItemType.despesaPrevista)
-        .fold(0.0, (s, p) => s + p.value);
-    final spentOnAdditionals = totalExpenses - alreadyPaidMandatory;
-    final rolloverMoney = FinanceMath.balance(
-      transactions.where((t) => t.date.isBefore(endOfMonth)),
-    );
-    final leftToPay = mandatory.fold(
-      0.0,
-      (s, p) =>
-          s +
-          (p.value - FinanceMath.realized(p, currentMonthTransactions)).clamp(
-            0,
-            double.infinity,
-          ),
-    );
-    final totalNaoGasto = balance + totalToReceive - leftToPay;
     final budgets = ref.watch(budgetsProvider);
     final goals = ref.watch(goalsProvider);
     return Scaffold(
@@ -198,7 +168,139 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 20),
+              // ─── Big Number Display ───
               GlassCard(
+                onTap: () => details(
+                  'Saldo acumulado até o mês',
+                  'Entradas e saídas até o fim do mês selecionado. Lançamentos de transporte de saldo não são somados novamente.',
+                  summary.balance,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 28,
+                  horizontal: 20,
+                ),
+                borderColor: balance >= 0
+                    ? AppTheme.success.withValues(alpha: 0.15)
+                    : AppTheme.error.withValues(alpha: 0.15),
+                child: Column(
+                  children: [
+                    Text(
+                      'Saldo acumulado até o mês',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Ver lançamentos ›',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        money(balance),
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: balance >= 0
+                              ? AppTheme.success
+                              : AppTheme.error,
+                          letterSpacing: -2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                'Detalhes do planejamento',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              const Text('Toque em um card para ver a composição.'),
+              const SizedBox(height: 12),
+              GridView.count(
+                crossAxisCount: MediaQuery.sizeOf(context).width >= 700 ? 4 : 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: MediaQuery.textScalerOf(context).scale(200),
+                children: [
+                  stat(
+                    'Total a Receber',
+                    Icons.download_rounded,
+                    AppTheme.success,
+                    summary.toReceive,
+                    'Receitas planejadas ainda pendentes no mês. Cada valor desconta o que já foi recebido, considerando estornos.',
+                  ),
+                  stat(
+                    'Obrigatório a Gastar',
+                    Icons.warning_amber_rounded,
+                    AppTheme.error,
+                    summary.mandatory,
+                    'Total planejado das despesas fixas e variáveis obrigatórias do mês, incluindo as que já foram pagas.',
+                  ),
+                  stat(
+                    'Já Pago (Fixas)',
+                    Icons.check_circle_outline_rounded,
+                    AppTheme.primary,
+                    summary.paidMandatory,
+                    'Pagamentos vinculados às despesas obrigatórias do mês. Estornos aparecem negativos e reduzem o total.',
+                  ),
+                  stat(
+                    'Gasto Adicional',
+                    Icons.receipt_long_rounded,
+                    Colors.orange,
+                    summary.additional,
+                    'Despesas do mês fora das obrigações planejadas. Estornos aparecem negativos e reduzem o total.',
+                  ),
+                  stat(
+                    'Adicionais Previstas',
+                    Icons.lightbulb_outline_rounded,
+                    Colors.amber,
+                    summary.plannedAdditional,
+                    'Despesas adicionais previstas no planejamento do mês, com o valor realizado e o restante de cada item.',
+                  ),
+                  stat(
+                    'Sobra Anterior',
+                    Icons.history_rounded,
+                    AppTheme.textSecondary,
+                    summary.previous,
+                    'Saldo de todos os lançamentos anteriores ao mês selecionado. Entradas somam e saídas subtraem, sem duplicar transferências automáticas de saldo.',
+                  ),
+                  stat(
+                    'Falta Pagar no Mês',
+                    Icons.schedule_rounded,
+                    AppTheme.error,
+                    summary.toPay,
+                    'Despesas obrigatórias ainda pendentes no mês. Itens quitados ficam fora desta lista; pagamentos parciais e estornos ajustam o restante.',
+                  ),
+                  stat(
+                    'Total Não Gasto (Livre)',
+                    Icons.savings_rounded,
+                    AppTheme.success,
+                    summary.projection,
+                    'Projeção: saldo acumulado + receitas restantes − despesas obrigatórias restantes. Despesas adicionais ainda não pagas não são deduzidas. Toque em cada parcela para ver seus itens.',
+                    subtitle: 'Projeção após obrigações',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              GlassCard(
+                onTap: () => details(
+                  'Resultado do mês',
+                  'Entradas menos saídas do mês selecionado, incluindo os efeitos dos estornos.',
+                  summary.monthResult,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -224,6 +326,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 12),
                     Text('Balanço: ${money(totalIncomes - totalExpenses)}'),
                     const SizedBox(height: 8),
+                    const Text('Ver lançamentos ›'),
+                    const SizedBox(height: 8),
                     Text(
                       '${budgets.length} orçamentos • ${goals.length} metas em acompanhamento',
                     ),
@@ -231,116 +335,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              // ─── Big Number Display ───
-              GlassCard(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 28,
-                  horizontal: 20,
-                ),
-                borderColor: balance >= 0
-                    ? AppTheme.success.withValues(alpha: 0.15)
-                    : AppTheme.error.withValues(alpha: 0.15),
-                child: Column(
-                  children: [
-                    Text(
-                      'Saldo acumulado até o mês',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        money(balance),
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: balance >= 0
-                              ? AppTheme.success
-                              : AppTheme.error,
-                          letterSpacing: -2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // ─── Grid Analítico Preditivo ───
-              ExpansionTile(
-                title: const Text('Detalhes do planejamento'),
-                tilePadding: EdgeInsets.zero,
-                children: [
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    mainAxisExtent: MediaQuery.textScalerOf(context).scale(220),
-                    children: [
-                      QuickStatCard(
-                        label: 'Total a Receber',
-                        value: money(totalToReceive),
-                        icon: Icons.download_rounded,
-                        color: AppTheme.success,
-                      ),
-                      QuickStatCard(
-                        label: 'Obrigatório a Gastar',
-                        value: money(mandatoryToSpend),
-                        icon: Icons.warning_amber_rounded,
-                        color: AppTheme.error,
-                      ),
-                      QuickStatCard(
-                        label: 'Já Pago (Fixas)',
-                        value: money(alreadyPaidMandatory),
-                        icon: Icons.check_circle_outline_rounded,
-                        color: AppTheme.primary,
-                      ),
-                      QuickStatCard(
-                        label: 'Gasto Adicional',
-                        value: money(spentOnAdditionals),
-                        icon: Icons.receipt_long_rounded,
-                        color: Colors.orange,
-                      ),
-                      QuickStatCard(
-                        label: 'Adicionais Previstas',
-                        value: money(plannedAdditionals),
-                        icon: Icons.lightbulb_outline_rounded,
-                        color: Colors.amber,
-                      ),
-                      QuickStatCard(
-                        label: 'Sobra Anterior',
-                        value: money(rolloverMoney),
-                        icon: Icons.history_rounded,
-                        color: AppTheme.textSecondary,
-                      ),
-                      QuickStatCard(
-                        label: 'Falta Pagar no Mês',
-                        value: money(leftToPay),
-                        icon: Icons.schedule_rounded,
-                        color: AppTheme.error,
-                      ),
-                      QuickStatCard(
-                        label: 'Projeção após obrigações',
-                        value: money(totalNaoGasto),
-                        icon: Icons.savings_rounded,
-                        color: AppTheme.success,
-                        subtitle1: 'Já recebido: ${money(alreadyReceived)}',
-                        subtitle2: 'A receber: ${money(totalToReceive)}',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
               // ─── Linha do Tempo Preditiva ───
               if (!hidden) TimelineWidget(currentBalance: balance),
               const SizedBox(height: 24),

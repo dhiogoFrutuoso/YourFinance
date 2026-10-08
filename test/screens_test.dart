@@ -122,16 +122,19 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: AppTheme.darkTheme,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(scale),
-              disableAnimations: true,
+        child: RepaintBoundary(
+          key: boundary,
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(scale),
+                disableAnimations: true,
+              ),
+              child: child!,
             ),
-            child: child!,
+            home: page,
           ),
-          home: RepaintBoundary(key: boundary, child: page),
         ),
       ),
     );
@@ -243,7 +246,134 @@ void main() {
       scale: 1.6,
     );
     expect(tester.takeException(), isNull);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('Total Não Gasto (Livre)')),
+    );
+    await tester.tap(find.byKey(const ValueKey('Total Não Gasto (Livre)')));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Fechar detalhes'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'restored dashboard cards open matching details and respect privacy and month',
+    (tester) async {
+      await tester.runAsync(() async {
+        await container
+            .read(planningProvider.notifier)
+            .addPlanItem(
+              PlanItem(
+                id: 'water',
+                type: PlanItemType.despesaObrigatoria,
+                name: 'Conta de água',
+                value: 100,
+                monthRef: '2026-10',
+                dueDate: DateTime(2026, 10, 20),
+                createdAt: DateTime(2026, 10, 1),
+              ),
+            );
+        await container
+            .read(planningProvider.notifier)
+            .addPlanItem(
+              PlanItem(
+                id: 'freelance',
+                type: PlanItemType.entradaPrevista,
+                name: 'Trabalho extra',
+                value: 1200,
+                monthRef: '2026-10',
+                createdAt: DateTime(2026, 10, 1),
+              ),
+            );
+      });
+      await pump(tester, const DashboardScreen());
+      expect(find.byType(ExpansionTile), findsNothing);
+      for (final title in [
+        'Total a Receber',
+        'Obrigatório a Gastar',
+        'Já Pago (Fixas)',
+        'Gasto Adicional',
+        'Adicionais Previstas',
+        'Sobra Anterior',
+        'Falta Pagar no Mês',
+        'Total Não Gasto (Livre)',
+      ]) {
+        final card = find.byKey(ValueKey(title));
+        await tester.ensureVisible(card);
+        await tester.tap(card);
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Fechar detalhes'), findsOneWidget);
+        final sheet = find.byType(BottomSheet).last;
+        expect(
+          find.descendant(of: sheet, matching: find.text(title)),
+          findsOneWidget,
+        );
+        if (title == 'Total a Receber') {
+          expect(
+            find.descendant(of: sheet, matching: find.text('Trabalho extra')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: sheet, matching: find.text('Salário')),
+            findsNothing,
+          );
+        }
+        if (title == 'Falta Pagar no Mês') {
+          expect(
+            find.descendant(of: sheet, matching: find.text('Conta de água')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: sheet, matching: find.text('Moradia')),
+            findsNothing,
+          );
+          expect(find.text('Vencimento: 20/10/2026'), findsOneWidget);
+          await screenshot(tester, 'dashboard-pending-details');
+        }
+        if (title == 'Adicionais Previstas') {
+          expect(
+            find.text('Nenhum item para listar neste período.'),
+            findsOneWidget,
+          );
+        }
+        if (title == 'Total Não Gasto (Livre)') {
+          await tester.tap(
+            find.descendant(of: sheet, matching: find.text('Total a Receber')),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Trabalho extra'), findsOneWidget);
+          await tester.tap(find.byTooltip('Fechar detalhes').last);
+          await tester.pumpAndSettle();
+        }
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.byTooltip('Fechar detalhes').last);
+        await tester.pumpAndSettle();
+      }
+      await tester.runAsync(
+        () => container.read(settingsProvider.notifier).toggleAmounts(),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('Total a Receber')));
+      await tester.tap(find.byKey(const ValueKey('Total a Receber')));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.textContaining('R\$'),
+        ),
+        findsNothing,
+      );
+      await tester.tap(find.byTooltip('Fechar detalhes'));
+      await tester.pumpAndSettle();
+      container.read(selectedMonthProvider.notifier).update('2027-01');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('Total a Receber')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Nenhum item para listar neste período.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'full app navigation and quick transaction preserve month and category',
     (tester) async {

@@ -1,4 +1,17 @@
-# YourFinance v1.4.1 — barra de abas sem sobreposição
+# YourFinance v1.4.2 — cards do dashboard com detalhes
+
+- Os oito cards anteriores voltam a aparecer diretamente no dashboard, sem precisar expandir uma seção.
+- Todos os cards abrem modais com os itens que compõem seus valores, incluindo receitas a receber, obrigações, pagamentos, gastos adicionais e saldo anterior.
+- Pendências mostram planejado, realizado, restante e vencimento; valores quitados ficam fora das listas de pendências.
+- O saldo livre explica sua projeção e permite abrir a composição de cada parcela. Saldo acumulado e resultado do mês também abrem seus lançamentos.
+- Totais e listas compartilham o mesmo cálculo, respeitando mês selecionado, pagamentos parciais, estornos e privacidade dos valores.
+- Mantidos relatórios, gráficos, metas, orçamentos e a correção da barra inferior.
+
+Validação: análise Flutter sem problemas e 26 testes aprovados. Conferidas as modais em tela de celular e em paisagem com texto ampliado. APK 1.4.2, código 14, com a assinatura anterior. Validação em aparelho físico continua pendente.
+
+---
+
+# Histórico: YourFinance v1.4.1 — barra de abas sem sobreposição
 
 - A barra inferior reserva espaço no layout e mantém as quatro abas acima dela, incluindo a área segura do dispositivo.
 - Os botões de ação usam o espaço disponível acima da barra, sem deslocamento fixo de 90 pixels.
