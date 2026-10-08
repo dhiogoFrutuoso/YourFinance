@@ -358,7 +358,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90.0),
+        padding: EdgeInsets.zero,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [

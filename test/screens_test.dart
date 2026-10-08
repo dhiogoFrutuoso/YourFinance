@@ -281,6 +281,18 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(find.text('Salvar Transação'), findsNothing);
+      final shell = tester.widget<Scaffold>(
+        find.byWidgetPredicate(
+          (widget) => widget is Scaffold && widget.bottomNavigationBar != null,
+        ),
+      );
+      final barTop = tester
+          .getTopLeft(find.byWidget(shell.bottomNavigationBar!))
+          .dy;
+      expect(
+        tester.getBottomRight(find.byType(DashboardScreen)).dy,
+        lessThanOrEqualTo(barTop),
+      );
       await screenshot(tester, 'app-dashboard');
     },
   );

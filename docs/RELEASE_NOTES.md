@@ -1,4 +1,15 @@
-# YourFinance v1.4.0 — visão financeira e confiabilidade
+# YourFinance v1.4.1 — barra de abas sem sobreposição
+
+- A barra inferior reserva espaço no layout e mantém as quatro abas acima dela, incluindo a área segura do dispositivo.
+- Os botões de ação usam o espaço disponível acima da barra, sem deslocamento fixo de 90 pixels.
+- Espaçamentos compensatórios reduzidos no dashboard e no status.
+- Verificados os limites reais do conteúdo e dos botões nas quatro abas, em retrato e paisagem; o teste do fluxo completo também protege o limite do dashboard.
+
+APK: versão 1.4.1, código 13. Mantida a assinatura anterior. Validação em aparelho físico continua pendente.
+
+---
+
+# Histórico: YourFinance v1.4.0 — visão financeira e confiabilidade
 
 ## Novidades
 

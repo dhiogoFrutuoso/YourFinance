@@ -423,7 +423,7 @@ class StatusScreen extends ConsumerWidget {
               // ─── Checklist ───
               mandatoryExpenses.isEmpty
                   ? Padding(
-                      padding: const EdgeInsets.only(top: 40, bottom: 100),
+                      padding: const EdgeInsets.only(top: 40, bottom: 24),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -452,7 +452,7 @@ class StatusScreen extends ConsumerWidget {
                   : ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       itemCount: mandatoryExpenses.length,
                       itemBuilder: (context, index) {
                         final expense = mandatoryExpenses[index];

@@ -147,7 +147,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
             SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 100),
+                padding: const EdgeInsets.only(bottom: 24),
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -201,7 +201,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
         ],
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90.0),
+        padding: EdgeInsets.zero,
         child: Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,

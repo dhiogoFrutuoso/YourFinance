@@ -121,7 +121,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         ],
       ),
       body: widget.navigationShell,
-      extendBody: true,
+      extendBody: false,
       bottomNavigationBar: SafeArea(
         top: false,
         child: _FloatingBottomNav(
