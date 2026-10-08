@@ -3,13 +3,13 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'plan_item.freezed.dart';
 part 'plan_item.g.dart';
 
-enum PlanItemType { 
-  entradaFixa, 
-  entradaPrevista, 
+enum PlanItemType {
+  entradaFixa,
+  entradaPrevista,
   entradaVariavel,
-  despesaObrigatoria, 
+  despesaObrigatoria,
   despesaPrevista,
-  despesaVariavelObrigatoria
+  despesaVariavelObrigatoria,
 }
 
 @freezed
@@ -31,5 +31,6 @@ abstract class PlanItem with _$PlanItem {
     String? customCategoryId,
   }) = _PlanItem;
 
-  factory PlanItem.fromJson(Map<String, dynamic> json) => _$PlanItemFromJson(json);
+  factory PlanItem.fromJson(Map<String, dynamic> json) =>
+      _$PlanItemFromJson(json);
 }

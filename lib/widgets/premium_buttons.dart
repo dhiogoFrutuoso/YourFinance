@@ -75,10 +75,7 @@ class PremiumGhostButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18),
-            const SizedBox(width: 8),
-          ],
+          if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
           Text(label),
         ],
       ),

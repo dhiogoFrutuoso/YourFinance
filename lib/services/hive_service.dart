@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/plan_item.dart';
+import 'finance_math.dart';
 import '../models/transaction.dart' as model_transaction;
 
 class HiveService {
@@ -11,6 +12,7 @@ class HiveService {
     await Hive.initFlutter();
     await Hive.openBox<String>(_planItemsBoxName);
     await Hive.openBox<String>(_transactionsBoxName);
+    await Hive.openBox<String>('preferences');
   }
 
   // --- Plan Items ---
@@ -39,16 +41,31 @@ class HiveService {
   }
 
   static List<PlanItem> getPlanItemsByMonth(String monthRef) {
-    return getPlanItems().where((item) => item.monthRef == monthRef).toList();
+    return getPlanItems()
+        .where((item) => FinanceMath.activeInMonth(item, monthRef))
+        .map(
+          (item) => item.copyWith(
+            dueDate: item.dueDate == null
+                ? null
+                : FinanceMath.inMonth(item.dueDate!, monthRef),
+          ),
+        )
+        .toList();
   }
 
   // --- Transactions ---
-  static Box<String> get _transactionsBox => Hive.box<String>(_transactionsBoxName);
+  static Box<String> get _transactionsBox =>
+      Hive.box<String>(_transactionsBoxName);
 
-  static Future<void> saveTransaction(model_transaction.Transaction transaction) async {
+  static Future<void> saveTransaction(
+    model_transaction.Transaction transaction,
+  ) async {
     final jsonStr = jsonEncode(transaction.toJson());
     await _transactionsBox.put(transaction.id, jsonStr);
   }
+
+  static Future<void> removeFailedReversal(String id) =>
+      _transactionsBox.delete(id);
 
   static List<model_transaction.Transaction> getTransactions() {
     final List<model_transaction.Transaction> transactions = [];

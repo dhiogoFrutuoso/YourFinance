@@ -169,3 +169,31 @@ Distribuído sob a licença **MIT**. Veja o arquivo `LICENSE` para mais informa�
 <div align="center">
   <sub>Desenvolvido com 💜 em Flutter.</sub>
 </div>
+
+## Atualização 1.4.0
+
+A versão amplia o dashboard sem retirar as telas anteriores. Em **Relatórios e metas** estão o comparativo de seis meses, categorias, meios de pagamento, cinco maiores gastos e exportação CSV. As abas **Orçamentos** e **Metas** permitem criar e editar limites mensais e objetivos com acompanhamento persistente. O botão **+** no cabeçalho abre as ações rápidas.
+
+As correções de transações preservam o original, registram o estorno e criam o novo lançamento. Estornos novos usam a data contábil do original e guardam a data real da ação. No planejamento parcelado, o valor informado corresponde a **cada parcela**. Metas são reservas manuais e não movimentam o extrato.
+
+- [Auditoria completa e melhorias futuras](docs/AUDITORIA.md)
+- [Notas da versão](docs/RELEASE_NOTES.md)
+
+### Verificação e build
+
+```sh
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+SDK validado: Flutter **3.44.3**, Dart **3.12.2**, Java **17**, Android compile SDK **37**. A fonte Inter é distribuída com a licença em `assets/fonts/OFL.txt`.
+
+### Publicação e assinatura
+
+O APK local mantém a configuração de assinatura de desenvolvimento que já existia no projeto. Não substituir essa chave sem um plano de migração das instalações existentes. A autenticação do app usa biometria/PIN do dispositivo; ela não criptografa os arquivos Hive. Backups JSON devem ser guardados em local protegido.
+
+O workflow valida, testa e compila a cada push em `master`/`main`. Para publicar automaticamente uma nova versão, ele exige o secret `ANDROID_LEGACY_KEYSTORE_BASE64` contendo a mesma identidade de assinatura legada; sem esse secret, entrega um artefato de CI e a publicação deve ser feita com o APK assinado localmente. Nenhuma chave privada está no repositório. A publicação usa a versão declarada em `pubspec.yaml` e preserva releases já existentes.
+
+Não existe implementação de Open Finance, sincronização em nuvem, gerenciamento completo de faturas ou investimentos nesta versão. O texto de referência orientou a evolução de dashboard, planejamento e análises; esses módulos externos permanecem no roteiro da auditoria.

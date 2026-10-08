@@ -1,7 +1,8 @@
+import '../providers/settings_provider.dart';
+import '../services/finance_math.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../providers/planning_provider.dart';
 import '../models/plan_item.dart';
@@ -22,25 +23,38 @@ class PlanningScreen extends ConsumerStatefulWidget {
 class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   @override
   Widget build(BuildContext context) {
+    ref.watch(settingsProvider);
     final monthRef = ref.watch(selectedMonthProvider);
     final allItems = ref.watch(planningProvider);
 
     // Filter items based on installments and expiration date
     final items = allItems.where((i) {
-      if (!i.isInstallment! && i.monthRef != monthRef) return false;
+      if (i.isInstallment != true && i.monthRef != monthRef) return false;
       if (i.expirationDate != null) {
         final currentMonthParts = monthRef.split('-');
-        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
+        final currentMonthDate = DateTime(
+          int.parse(currentMonthParts[0]),
+          int.parse(currentMonthParts[1]),
+        );
         if (currentMonthDate.isAfter(i.expirationDate!)) return false;
       }
-      if (i.isInstallment!) {
+      if (i.isInstallment == true) {
         final currentMonthParts = monthRef.split('-');
-        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
+        final currentMonthDate = DateTime(
+          int.parse(currentMonthParts[0]),
+          int.parse(currentMonthParts[1]),
+        );
         final startMonthParts = i.monthRef.split('-');
-        final startMonthDate = DateTime(int.parse(startMonthParts[0]), int.parse(startMonthParts[1]));
+        final startMonthDate = DateTime(
+          int.parse(startMonthParts[0]),
+          int.parse(startMonthParts[1]),
+        );
         if (currentMonthDate.isBefore(startMonthDate)) return false;
-        
-        final diffMonths = (currentMonthDate.year - startMonthDate.year) * 12 + currentMonthDate.month - startMonthDate.month;
+
+        final diffMonths =
+            (currentMonthDate.year - startMonthDate.year) * 12 +
+            currentMonthDate.month -
+            startMonthDate.month;
         if (diffMonths >= (i.totalInstallments ?? 1)) return false;
       }
       return true;
@@ -50,15 +64,15 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     double totalExpenses = 0;
 
     for (var item in items) {
-      if (item.type == PlanItemType.entradaFixa || 
-          item.type == PlanItemType.entradaPrevista || 
+      if (item.type == PlanItemType.entradaFixa ||
+          item.type == PlanItemType.entradaPrevista ||
           item.type == PlanItemType.entradaVariavel) {
         totalIncomes += item.value;
       } else {
         totalExpenses += item.value;
       }
     }
-    
+
     final balance = totalIncomes - totalExpenses;
 
     return Scaffold(
@@ -66,7 +80,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
         slivers: [
           // ─── SliverAppBar with Hero Card ───
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: MediaQuery.textScalerOf(context).scale(340),
             floating: false,
             pinned: true,
             backgroundColor: AppTheme.background,
@@ -75,17 +89,22 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                 icon: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.surface.withOpacity(0.6),
+                    color: AppTheme.surface.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.copy_rounded, size: 18),
                 ),
                 tooltip: 'Duplicar do mês anterior',
                 onPressed: () async {
-                  await ref.read(planningProvider.notifier).duplicatePreviousMonthItems();
+                  await ref
+                      .read(planningProvider.notifier)
+                      .duplicatePreviousMonthItems();
                   HapticFeedback.mediumImpact();
-                  if (mounted) {
-                    SnackBarUtils.showSuccess(context, 'Itens do mês anterior duplicados!');
+                  if (context.mounted) {
+                    SnackBarUtils.showSuccess(
+                      context,
+                      'Itens do mês anterior duplicados!',
+                    );
                   }
                 },
               ),
@@ -97,10 +116,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF1A0A2E),
-                      AppTheme.background,
-                    ],
+                    colors: [Color(0xFF1A0A2E), AppTheme.background],
                   ),
                 ),
                 child: SafeArea(
@@ -118,7 +134,11 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
             ),
             title: Text(
               'Planejamento',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18),
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+              ),
             ),
           ),
 
@@ -132,17 +152,30 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.playlist_add_rounded, size: 56, color: AppTheme.textTertiary.withOpacity(0.5)),
+                      Icon(
+                        Icons.playlist_add_rounded,
+                        size: 56,
+                        color: AppTheme.textTertiary.withValues(alpha: 0.5),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Nenhum item planejado\npara este mês.',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(color: AppTheme.textTertiary, fontSize: 15, height: 1.5),
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: AppTheme.textTertiary,
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Toque em + para adicionar.',
-                        style: GoogleFonts.inter(color: AppTheme.textDisabled, fontSize: 13),
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: AppTheme.textDisabled,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -153,18 +186,16 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = items[index];
-                    return _PlanItemCard(
-                      item: item,
-                      monthRef: monthRef,
-                      onEdit: () => _showAddItemModal(context, monthRef, item: item),
-                      onDelete: () => _confirmDelete(context, item.id, item.name),
-                    );
-                  },
-                  childCount: items.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final item = items[index];
+                  return _PlanItemCard(
+                    item: item,
+                    monthRef: monthRef,
+                    onEdit: () =>
+                        _showAddItemModal(context, monthRef, item: item),
+                    onDelete: () => _confirmDelete(context, item.id, item.name),
+                  );
+                }, childCount: items.length),
               ),
             ),
         ],
@@ -188,15 +219,19 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
 
   void _confirmDelete(BuildContext context, String id, String itemName) async {
     final confirmed = await ConfirmDialog.show(
-      context: context, 
-      title: 'Excluir $itemName?'
+      context: context,
+      title: 'Excluir $itemName?',
     );
     if (confirmed) {
       ref.read(planningProvider.notifier).removePlanItem(id);
     }
   }
 
-  void _showAddItemModal(BuildContext context, String monthRef, {PlanItem? item}) {
+  void _showAddItemModal(
+    BuildContext context,
+    String monthRef, {
+    PlanItem? item,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -222,7 +257,7 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      borderColor: AppTheme.primary.withOpacity(0.25),
+      borderColor: AppTheme.primary.withValues(alpha: 0.25),
       boxShadow: AppTheme.glowShadow(blurRadius: 20, opacity: 0.15),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -230,7 +265,8 @@ class _HeroCard extends StatelessWidget {
         children: [
           Text(
             'Saldo Projetado',
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Inter',
               color: AppTheme.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -239,14 +275,15 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             Formatters.formatCurrency(balance),
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Inter',
               fontSize: 32,
               fontWeight: FontWeight.bold,
               color: balance >= 0 ? AppTheme.success : AppTheme.error,
             ),
           ),
           const SizedBox(height: 16),
-          Divider(color: Colors.white.withOpacity(0.08)),
+          Divider(color: Colors.white.withValues(alpha: 0.08)),
           const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
@@ -262,18 +299,18 @@ class _HeroCard extends StatelessWidget {
                 Container(
                   width: 1,
                   height: double.infinity,
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
-              Expanded(
-                child: _MiniStat(
-                  label: 'Despesas',
-                  value: Formatters.formatCurrency(expenses),
-                  color: AppTheme.error,
-                  icon: Icons.arrow_downward_rounded,
+                Expanded(
+                  child: _MiniStat(
+                    label: 'Despesas',
+                    value: Formatters.formatCurrency(expenses),
+                    color: AppTheme.error,
+                    icon: Icons.arrow_downward_rounded,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ],
       ),
@@ -305,7 +342,8 @@ class _MiniStat extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Inter',
                 fontSize: 11,
                 color: AppTheme.textTertiary,
                 fontWeight: FontWeight.w500,
@@ -318,7 +356,8 @@ class _MiniStat extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             value,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Inter',
               fontSize: 14,
               fontWeight: FontWeight.bold,
               color: color,
@@ -347,18 +386,28 @@ class _PlanItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isIncome = item.type == PlanItemType.entradaFixa || 
-                     item.type == PlanItemType.entradaPrevista || 
-                     item.type == PlanItemType.entradaVariavel;
+    final isIncome =
+        item.type == PlanItemType.entradaFixa ||
+        item.type == PlanItemType.entradaPrevista ||
+        item.type == PlanItemType.entradaVariavel;
     final color = isIncome ? AppTheme.success : AppTheme.error;
 
     String installmentText = '';
     if (item.isInstallment == true) {
       final currentMonthParts = monthRef.split('-');
-      final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
+      final currentMonthDate = DateTime(
+        int.parse(currentMonthParts[0]),
+        int.parse(currentMonthParts[1]),
+      );
       final startMonthParts = item.monthRef.split('-');
-      final startMonthDate = DateTime(int.parse(startMonthParts[0]), int.parse(startMonthParts[1]));
-      final diffMonths = (currentMonthDate.year - startMonthDate.year) * 12 + currentMonthDate.month - startMonthDate.month;
+      final startMonthDate = DateTime(
+        int.parse(startMonthParts[0]),
+        int.parse(startMonthParts[1]),
+      );
+      final diffMonths =
+          (currentMonthDate.year - startMonthDate.year) * 12 +
+          currentMonthDate.month -
+          startMonthDate.month;
       installmentText = ' (${diffMonths + 1}/${item.totalInstallments})';
     }
 
@@ -377,9 +426,13 @@ class _PlanItemCard extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha: 0.12),
                   ),
-                  child: Icon(_getIconForType(item.type), color: color, size: 20),
+                  child: Icon(
+                    _getIconForType(item.type),
+                    color: color,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 // Name + subtitle
@@ -389,7 +442,8 @@ class _PlanItemCard extends StatelessWidget {
                     children: [
                       Text(
                         '${item.name}$installmentText',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textPrimary,
@@ -400,9 +454,12 @@ class _PlanItemCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         item.expirationDate != null
-                          ? '${isIncome ? 'Recebe em' : 'Vence em'}: ${Formatters.formatDate(item.expirationDate!)}'
-                          : (item.description?.isNotEmpty == true ? item.description! : _getTypeName(item.type)),
-                        style: GoogleFonts.inter(
+                            ? '${isIncome ? 'Recebe em' : 'Vence em'}: ${Formatters.formatDate(item.expirationDate!)}'
+                            : (item.description?.isNotEmpty == true
+                                  ? item.description!
+                                  : _getTypeName(item.type)),
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           fontSize: 12,
                           color: AppTheme.textTertiary,
                         ),
@@ -416,7 +473,8 @@ class _PlanItemCard extends StatelessWidget {
                 // Value
                 Text(
                   Formatters.formatCurrency(item.value),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -425,11 +483,18 @@ class _PlanItemCard extends StatelessWidget {
                 // Delete button
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 18, color: AppTheme.textTertiary),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppTheme.textTertiary,
+                  ),
                   onPressed: onDelete,
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
               ],
             ),
@@ -450,7 +515,8 @@ class _PlanItemCard extends StatelessWidget {
                 ),
                 child: Text(
                   '${isIncome ? 'Recebimento' : 'Vencimento'}: ${item.expirationDate!.day.toString().padLeft(2, '0')}/${item.expirationDate!.month.toString().padLeft(2, '0')}',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -504,7 +570,7 @@ class _PlanItemCard extends StatelessWidget {
 class _AddItemSheet extends ConsumerStatefulWidget {
   final String monthRef;
   final PlanItem? itemToEdit;
-  
+
   const _AddItemSheet({required this.monthRef, this.itemToEdit});
 
   @override
@@ -517,10 +583,12 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _valueController = TextEditingController();
-  
+
   bool _isInstallment = false;
   final _installmentsController = TextEditingController();
   DateTime? _expirationDate;
+  DateTime? _dueDate;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -531,8 +599,10 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
       _descController.text = widget.itemToEdit!.description ?? '';
       _valueController.text = widget.itemToEdit!.value.toString();
       _isInstallment = widget.itemToEdit!.isInstallment ?? false;
-      _installmentsController.text = widget.itemToEdit!.totalInstallments?.toString() ?? '';
+      _installmentsController.text =
+          widget.itemToEdit!.totalInstallments?.toString() ?? '';
       _expirationDate = widget.itemToEdit!.expirationDate;
+      _dueDate = widget.itemToEdit!.dueDate;
     } else {
       _type = PlanItemType.despesaObrigatoria;
     }
@@ -552,10 +622,13 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
     double bottomBarClearance = 100.0;
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface.withOpacity(0.95),
+        color: AppTheme.surface.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border(
-          top: BorderSide(color: AppTheme.primary.withOpacity(0.3), width: 1),
+          top: BorderSide(
+            color: AppTheme.primary.withValues(alpha: 0.3),
+            width: 1,
+          ),
         ),
       ),
       child: Padding(
@@ -578,7 +651,7 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -588,7 +661,8 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                 // Title
                 Text(
                   widget.itemToEdit == null ? 'Novo Item' : 'Editar Item',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textPrimary,
@@ -599,7 +673,7 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
 
                 // Type dropdown
                 DropdownButtonFormField<PlanItemType>(
-                  value: _type,
+                  initialValue: _type,
                   decoration: const InputDecoration(labelText: 'Tipo de Item'),
                   dropdownColor: AppTheme.surface,
                   items: PlanItemType.values.map((t) {
@@ -618,23 +692,47 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                 NeonTextField(
                   controller: _nameController,
                   labelText: 'Nome (ex: Aluguel)',
-                  validator: (v) => v == null || v.isEmpty ? 'Campo obrigatório' : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Campo obrigatório' : null,
                 ),
                 const SizedBox(height: 16),
 
                 // Value field
                 NeonTextField(
                   controller: _valueController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   labelText: 'Valor (R\$)',
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Campo obrigatório';
-                    if (double.tryParse(v.replaceAll(',', '.')) == null) return 'Valor inválido';
+                    if (FinanceMath.parseMoney(v) == null) {
+                      return 'Valor inválido';
+                    }
                     return null;
                   },
                 ),
                 const SizedBox(height: 20),
 
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.event_available),
+                  label: Text(
+                    _dueDate == null
+                        ? 'Definir vencimento ou recebimento'
+                        : 'Data: ${Formatters.formatDate(_dueDate!)}',
+                  ),
+                  onPressed: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate:
+                          _dueDate ?? DateTime.parse('${widget.monthRef}-01'),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                    );
+                    if (date != null) setState(() => _dueDate = date);
+                  },
+                ),
+                const SizedBox(height: 16),
                 // Installment toggle
                 AnimatedToggle(
                   value: _isInstallment,
@@ -645,7 +743,10 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                     keyboardType: TextInputType.number,
                     labelText: 'Total de Parcelas',
                     validator: (v) {
-                      if (_isInstallment && (v == null || int.tryParse(v) == null)) {
+                      if (_isInstallment &&
+                          (v == null ||
+                              (int.tryParse(v) ?? 0) < 1 ||
+                              (int.tryParse(v) ?? 0) > 600)) {
                         return 'Insira um número válido';
                       }
                       return null;
@@ -663,25 +764,42 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                       firstDate: DateTime(2020),
                       lastDate: DateTime(2100),
                     );
-                    if (picked != null) setState(() => _expirationDate = picked);
+                    if (picked != null) {
+                      setState(() => _expirationDate = picked);
+                    }
                   },
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: (_type == PlanItemType.entradaFixa || 
-                                  _type == PlanItemType.entradaPrevista || 
-                                  _type == PlanItemType.entradaVariavel) 
-                                 ? 'Data de Recebimento (Opcional)' 
-                                 : 'Data de Vencimento/Validade (Opcional)',
-                      suffixIcon: _expirationDate != null 
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, color: AppTheme.textTertiary),
-                            onPressed: () => setState(() => _expirationDate = null),
-                          ) 
-                        : const Icon(Icons.calendar_today_rounded, color: AppTheme.textTertiary, size: 18),
+                      labelText:
+                          (_type == PlanItemType.entradaFixa ||
+                              _type == PlanItemType.entradaPrevista ||
+                              _type == PlanItemType.entradaVariavel)
+                          ? 'Fim da validade (opcional)'
+                          : 'Fim da validade (opcional)',
+                      suffixIcon: _expirationDate != null
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear_rounded,
+                                color: AppTheme.textTertiary,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _expirationDate = null),
+                            )
+                          : const Icon(
+                              Icons.calendar_today_rounded,
+                              color: AppTheme.textTertiary,
+                              size: 18,
+                            ),
                     ),
                     child: Text(
-                      _expirationDate != null ? Formatters.formatDate(_expirationDate!) : 'Nenhuma (Sempre válido)',
-                      style: TextStyle(color: _expirationDate != null ? AppTheme.textPrimary : AppTheme.textTertiary),
+                      _expirationDate != null
+                          ? Formatters.formatDate(_expirationDate!)
+                          : 'Nenhuma (Sempre válido)',
+                      style: TextStyle(
+                        color: _expirationDate != null
+                            ? AppTheme.textPrimary
+                            : AppTheme.textTertiary,
+                      ),
                     ),
                   ),
                 ),
@@ -692,7 +810,10 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     gradient: AppTheme.primaryGradient,
-                    boxShadow: AppTheme.glowShadow(blurRadius: 16, opacity: 0.3),
+                    boxShadow: AppTheme.glowShadow(
+                      blurRadius: 16,
+                      opacity: 0.3,
+                    ),
                   ),
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
@@ -700,28 +821,68 @@ class _AddItemSheetState extends ConsumerState<_AddItemSheet> {
                       shadowColor: Colors.transparent,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        final item = PlanItem(
-                          id: widget.itemToEdit?.id ?? const Uuid().v4(),
-                          type: _type,
-                          name: _nameController.text.trim(),
-                          description: _descController.text.trim(),
-                          value: double.parse(_valueController.text.replaceAll(',', '.')),
-                          monthRef: widget.itemToEdit?.monthRef ?? widget.monthRef,
-                          createdAt: widget.itemToEdit?.createdAt ?? DateTime.now(),
-                          isInstallment: _isInstallment,
-                          totalInstallments: _isInstallment ? int.parse(_installmentsController.text) : null,
-                          expirationDate: _expirationDate,
-                        );
-                        ref.read(planningProvider.notifier).addPlanItem(item);
-                        HapticFeedback.mediumImpact();
-                        Navigator.pop(context);
-                      }
-                    },
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            if (_formKey.currentState!.validate()) {
+                              final item = PlanItem(
+                                id: widget.itemToEdit?.id ?? const Uuid().v4(),
+                                type: _type,
+                                name: _nameController.text.trim(),
+                                description: _descController.text.trim(),
+                                value: FinanceMath.parseMoney(
+                                  _valueController.text,
+                                )!,
+                                monthRef:
+                                    widget.itemToEdit?.monthRef ??
+                                    widget.monthRef,
+                                createdAt:
+                                    widget.itemToEdit?.createdAt ??
+                                    DateTime.now(),
+                                isInstallment: _isInstallment,
+                                totalInstallments: _isInstallment
+                                    ? int.parse(_installmentsController.text)
+                                    : null,
+                                expirationDate: _expirationDate,
+                                dueDate: _dueDate,
+                              );
+                              if (widget.itemToEdit != null) {
+                                final ok = await ConfirmDialog.show(
+                                  context: context,
+                                  title: 'Salvar alterações?',
+                                  confirmText: 'Salvar',
+                                  content:
+                                      'O planejamento será atualizado. Os lançamentos anteriores serão preservados.',
+                                );
+                                if (!ok || !context.mounted) return;
+                              }
+                              setState(() => _saving = true);
+                              try {
+                                await ref
+                                    .read(planningProvider.notifier)
+                                    .addPlanItem(item);
+                              } catch (_) {
+                                if (context.mounted) {
+                                  setState(() => _saving = false);
+                                  SnackBarUtils.showError(
+                                    context,
+                                    'Não foi possível salvar. Tente novamente.',
+                                  );
+                                }
+                                return;
+                              }
+                              if (!context.mounted) return;
+                              HapticFeedback.mediumImpact();
+                              Navigator.pop(context);
+                            }
+                          },
                     child: Text(
                       'Salvar',
-                      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

@@ -8,12 +8,13 @@ class ConfirmDialog {
     required BuildContext context,
     required String title,
     String? content,
+    String confirmText = 'Excluir',
   }) async {
     return GlassmorphismModal.show(
       context: context,
       title: title,
       content: content,
-      confirmText: 'Excluir',
+      confirmText: confirmText,
       cancelText: 'Cancelar',
       confirmIcon: Icons.delete_outline_rounded,
     );

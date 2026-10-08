@@ -33,9 +33,10 @@ class _AnimatedToggleState extends State<AnimatedToggle>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.92,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -79,12 +80,12 @@ class _AnimatedToggleState extends State<AnimatedToggle>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(15),
                       color: widget.value
-                          ? AppTheme.primary.withOpacity(0.3)
+                          ? AppTheme.primary.withValues(alpha: 0.3)
                           : AppTheme.surface,
                       border: Border.all(
                         color: widget.value
                             ? AppTheme.primary
-                            : Colors.white.withOpacity(0.15),
+                            : Colors.white.withValues(alpha: 0.15),
                         width: 1.5,
                       ),
                       boxShadow: widget.value
@@ -109,7 +110,9 @@ class _AnimatedToggleState extends State<AnimatedToggle>
                           boxShadow: widget.value
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primary.withOpacity(0.5),
+                                    color: AppTheme.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     blurRadius: 6,
                                   ),
                                 ]

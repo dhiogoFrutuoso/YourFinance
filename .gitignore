@@ -59,3 +59,4 @@ app.*.symbols
 app.*.map.json
 .agents/
 release_notes.md
+/android/.kotlin/

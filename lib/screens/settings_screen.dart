@@ -1,6 +1,10 @@
+import 'package:local_auth/local_auth.dart';
+import '../providers/planning_provider.dart';
+import '../providers/transactions_provider.dart';
+import '../providers/targets_provider.dart';
+import '../widgets/glassmorphism_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
 import '../utils/formatters.dart';
@@ -23,13 +27,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(
         title: Text(
           'Configurações',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18),
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
         ),
         leading: IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.surface.withOpacity(0.6),
+              color: AppTheme.surface.withValues(alpha: 0.6),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back_rounded, size: 18),
@@ -48,7 +56,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: SwitchListTile(
               title: Text(
                 'Exigir Biometria / PIN',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -56,15 +65,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               subtitle: Text(
                 'Ao abrir o aplicativo',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 12,
                   color: AppTheme.textTertiary,
                 ),
               ),
               value: settings.useBiometrics,
-              activeColor: AppTheme.primary,
-              onChanged: (val) {
-                ref.read(settingsProvider.notifier).toggleBiometrics(val);
+              activeThumbColor: AppTheme.primary,
+              onChanged: (val) async {
+                try {
+                  final auth = LocalAuthentication();
+                  if (!await auth.isDeviceSupported()) {
+                    if (context.mounted) {
+                      SnackBarUtils.showError(
+                        context,
+                        'Configure um bloqueio de tela no dispositivo.',
+                      );
+                    }
+                    return;
+                  }
+                  final ok = await auth.authenticate(
+                    localizedReason:
+                        'Confirme a alteração da proteção do aplicativo',
+                  );
+                  if (ok) {
+                    await ref
+                        .read(settingsProvider.notifier)
+                        .toggleBiometrics(val);
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    SnackBarUtils.showError(
+                      context,
+                      'Não foi possível autenticar neste dispositivo.',
+                    );
+                  }
+                }
               },
             ),
           ),
@@ -86,17 +123,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () async {
                     try {
                       final path = await BackupService.exportBackup();
-                      if (mounted) {
-                        SnackBarUtils.showSuccess(context, 'Backup salvo em: $path');
+                      if (context.mounted && path != null) {
+                        SnackBarUtils.showSuccess(
+                          context,
+                          'Backup salvo em: $path',
+                        );
                       }
                     } catch (e) {
-                      if (mounted) {
-                        SnackBarUtils.showError(context, 'Erro ao exportar backup');
+                      if (context.mounted) {
+                        SnackBarUtils.showError(
+                          context,
+                          'Erro ao exportar backup',
+                        );
                       }
                     }
                   },
                 ),
-                Divider(height: 1, indent: 56, color: Colors.white.withOpacity(0.06)),
+                Divider(
+                  height: 1,
+                  indent: 56,
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
                 _SettingsTile(
                   icon: Icons.download_rounded,
                   iconColor: AppTheme.primary,
@@ -104,13 +151,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: 'Restaurar dados a partir de um JSON',
                   onTap: () async {
                     try {
-                      await BackupService.importBackup();
-                      if (mounted) {
-                        SnackBarUtils.showSuccess(context, 'Backup restaurado com sucesso! Reinicie o app para ver os dados.');
+                      final data = await BackupService.pickBackup();
+                      if (data == null || !context.mounted) return;
+                      final confirmed = await GlassmorphismModal.show(
+                        context: context,
+                        title: 'Restaurar backup?',
+                        content:
+                            '${(data['transactions'] as List).length} lançamentos e ${(data['planItems'] as List).length} itens de planejamento substituirão os dados atuais. Uma cópia de recuperação será preservada neste dispositivo.',
+                        confirmText: 'Restaurar',
+                      );
+                      if (!confirmed) return;
+                      await BackupService.restore(data);
+                      ref.invalidate(planningProvider);
+                      ref.invalidate(transactionsProvider);
+                      ref.invalidate(budgetsProvider);
+                      ref.invalidate(goalsProvider);
+                      ref.invalidate(settingsProvider);
+                      if (context.mounted) {
+                        SnackBarUtils.showSuccess(
+                          context,
+                          'Backup restaurado. Os dados já estão atualizados.',
+                        );
                       }
                     } catch (e) {
-                      if (mounted) {
-                        SnackBarUtils.showError(context, 'Erro ao importar backup. Verifique se o arquivo é válido.');
+                      if (context.mounted) {
+                        SnackBarUtils.showError(
+                          context,
+                          'Erro ao importar backup. Verifique se o arquivo é válido.',
+                        );
                       }
                     }
                   },
@@ -130,12 +198,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.asset('assets/images/logo.png', height: 56),
+                  child: Image.asset('assets/images/logo.webp', height: 56),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'YourFinance',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textPrimary,
@@ -143,8 +212,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'v1.0.0',
-                  style: GoogleFonts.inter(
+                  'v1.4.0',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 13,
                     color: AppTheme.textTertiary,
                   ),
@@ -174,7 +244,8 @@ class _SectionHeader extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           title,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Inter',
             fontSize: 13,
             fontWeight: FontWeight.w700,
             color: AppTheme.textTertiary,
@@ -213,13 +284,14 @@ class _SettingsTile extends StatelessWidget {
         height: 36,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: iconColor.withOpacity(0.12),
+          color: iconColor.withValues(alpha: 0.12),
         ),
         child: Icon(icon, size: 18, color: iconColor),
       ),
       title: Text(
         title,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: AppTheme.textPrimary,
@@ -227,12 +299,17 @@ class _SettingsTile extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 12,
           color: AppTheme.textTertiary,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textTertiary, size: 20),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: AppTheme.textTertiary,
+        size: 20,
+      ),
     );
   }
 }

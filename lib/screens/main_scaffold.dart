@@ -1,3 +1,4 @@
+import 'transactions_screen.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +7,7 @@ import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../providers/planning_provider.dart';
 import '../services/month_manager_service.dart';
-import '../widgets/glass_card.dart';
+import '../providers/settings_provider.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -26,6 +27,15 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     });
   }
 
+  void _moveMonth(String month, int delta) {
+    final date = DateTime.parse('$month-01');
+    final next = DateTime(date.year, date.month + delta);
+    if (next.year < 2020 || next.year > 2100) return;
+    ref
+        .read(selectedMonthProvider.notifier)
+        .update('${next.year}-${next.month.toString().padLeft(2, '0')}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final monthRef = ref.watch(selectedMonthProvider);
@@ -41,17 +51,88 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         backgroundColor: AppTheme.colorCanvas,
         elevation: 0,
         centerTitle: true,
+        leading: IconButton(
+          tooltip: 'Mês anterior',
+          icon: const Icon(Icons.chevron_left),
+          onPressed: () => _moveMonth(monthRef, -1),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Adicionar lançamento',
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              useSafeArea: true,
+              showDragHandle: true,
+              builder: (sheetContext) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.arrow_upward,
+                      color: AppTheme.success,
+                    ),
+                    title: const Text('Nova receita'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      showNewTransaction(context, true);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.arrow_downward,
+                      color: AppTheme.error,
+                    ),
+                    title: const Text('Nova despesa'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      showNewTransaction(context, false);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.query_stats),
+                    title: const Text('Relatórios, orçamentos e metas'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push('/reports');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Próximo mês',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => _moveMonth(monthRef, 1),
+          ),
+          IconButton(
+            tooltip: ref.watch(settingsProvider).hideAmounts
+                ? 'Mostrar valores'
+                : 'Ocultar valores',
+            icon: Icon(
+              ref.watch(settingsProvider).hideAmounts
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+            ),
+            onPressed: () =>
+                ref.read(settingsProvider.notifier).toggleAmounts(),
+          ),
+        ],
       ),
       body: widget.navigationShell,
       extendBody: true,
-      bottomNavigationBar: _FloatingBottomNav(
-        currentIndex: widget.navigationShell.currentIndex,
-        onTap: (index) {
-          widget.navigationShell.goBranch(
-            index,
-            initialLocation: index == widget.navigationShell.currentIndex,
-          );
-        },
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: _FloatingBottomNav(
+          currentIndex: widget.navigationShell.currentIndex,
+          onTap: (index) {
+            widget.navigationShell.goBranch(
+              index,
+              initialLocation: index == widget.navigationShell.currentIndex,
+            );
+          },
+        ),
       ),
     );
   }
@@ -61,16 +142,29 @@ class _FloatingBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const _FloatingBottomNav({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _FloatingBottomNav({required this.currentIndex, required this.onTap});
 
   static const _items = [
-    _NavItem(icon: Icons.edit_calendar_outlined, activeIcon: Icons.edit_calendar, label: 'Plano'),
-    _NavItem(icon: Icons.space_dashboard_outlined, activeIcon: Icons.space_dashboard, label: 'Dash'),
-    _NavItem(icon: Icons.list_alt_outlined, activeIcon: Icons.list_alt, label: 'Extrato'),
-    _NavItem(icon: Icons.donut_large_outlined, activeIcon: Icons.donut_large, label: 'Status'),
+    _NavItem(
+      icon: Icons.edit_calendar_outlined,
+      activeIcon: Icons.edit_calendar,
+      label: 'Plano',
+    ),
+    _NavItem(
+      icon: Icons.space_dashboard_outlined,
+      activeIcon: Icons.space_dashboard,
+      label: 'Visão geral',
+    ),
+    _NavItem(
+      icon: Icons.list_alt_outlined,
+      activeIcon: Icons.list_alt,
+      label: 'Extrato',
+    ),
+    _NavItem(
+      icon: Icons.donut_large_outlined,
+      activeIcon: Icons.donut_large,
+      label: 'Status',
+    ),
   ];
 
   @override
@@ -84,15 +178,15 @@ class _FloatingBottomNav extends StatelessWidget {
           child: Container(
             height: 72,
             decoration: BoxDecoration(
-              color: AppTheme.surface.withOpacity(0.75),
+              color: AppTheme.surface.withValues(alpha: 0.75),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 4),
                 ),
@@ -124,7 +218,9 @@ class _FloatingBottomNav extends StatelessWidget {
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color: AppTheme.primary.withOpacity(0.4),
+                                        color: AppTheme.primary.withValues(
+                                          alpha: 0.4,
+                                        ),
                                         blurRadius: 14,
                                         spreadRadius: 1,
                                       ),
@@ -196,8 +292,11 @@ class _GlobalMonthDropdown extends StatelessWidget {
     return GestureDetector(
       onTap: () async {
         final parts = currentMonthRef.split('-');
-        DateTime initialDate = DateTime(int.parse(parts[0]), int.parse(parts[1]));
-        
+        DateTime initialDate = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+        );
+
         final picked = await showDatePicker(
           context: context,
           initialDate: initialDate,
@@ -206,7 +305,8 @@ class _GlobalMonthDropdown extends StatelessWidget {
           initialDatePickerMode: DatePickerMode.year,
         );
         if (picked != null) {
-          final newMonthRef = '${picked.year}-${picked.month.toString().padLeft(2, '0')}';
+          final newMonthRef =
+              '${picked.year}-${picked.month.toString().padLeft(2, '0')}';
           onChanged(newMonthRef);
         }
       },
@@ -214,7 +314,11 @@ class _GlobalMonthDropdown extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.calendar_today_rounded, size: 16, color: AppTheme.colorPrimary),
+          const Icon(
+            Icons.calendar_today_rounded,
+            size: 16,
+            color: AppTheme.colorPrimary,
+          ),
           const SizedBox(width: 8),
           Text(
             Formatters.formatMonthRef(currentMonthRef),
@@ -225,7 +329,11 @@ class _GlobalMonthDropdown extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.colorInkSoft, size: 18),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppTheme.colorInkSoft,
+            size: 18,
+          ),
         ],
       ),
     );

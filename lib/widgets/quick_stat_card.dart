@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 
 /// A compact stat card for displaying "Entradas" / "Saídas" values
@@ -35,10 +34,12 @@ class QuickStatCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppTheme.surface.withOpacity(AppTheme.glassOpacity),
+            color: AppTheme.surface.withValues(alpha: AppTheme.glassOpacity),
             borderRadius: BorderRadius.circular(AppTheme.cardRadius),
             border: Border.all(
-              color: Colors.white.withOpacity(AppTheme.glassBorderOpacity),
+              color: Colors.white.withValues(
+                alpha: AppTheme.glassBorderOpacity,
+              ),
               width: 1,
             ),
           ),
@@ -52,7 +53,7 @@ class QuickStatCard extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                 ),
                 child: Icon(icon, color: color, size: 18),
               ),
@@ -60,7 +61,8 @@ class QuickStatCard extends StatelessWidget {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 11,
                   color: AppTheme.textSecondary,
                   fontWeight: FontWeight.w500,
@@ -72,7 +74,8 @@ class QuickStatCard extends StatelessWidget {
                 child: Text(
                   value,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -85,7 +88,8 @@ class QuickStatCard extends StatelessWidget {
                 Text(
                   subtitle1!,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 9,
                     color: AppTheme.textTertiary,
                     fontWeight: FontWeight.w400,
@@ -97,7 +101,8 @@ class QuickStatCard extends StatelessWidget {
                 Text(
                   subtitle2!,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     fontSize: 9,
                     color: AppTheme.textTertiary,
                     fontWeight: FontWeight.w400,

@@ -1,3 +1,4 @@
+import 'screens/reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/main_scaffold.dart';
@@ -8,7 +9,9 @@ import 'screens/status_screen.dart';
 
 import 'screens/settings_screen.dart';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 
 final goRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
@@ -51,8 +54,11 @@ final goRouter = GoRouter(
             ),
           ],
         ),
-
       ],
+    ),
+    GoRoute(
+      path: '/reports',
+      builder: (context, state) => const ReportsScreen(),
     ),
     GoRoute(
       path: '/settings',

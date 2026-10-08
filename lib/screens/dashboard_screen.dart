@@ -1,8 +1,11 @@
+import '../providers/settings_provider.dart';
+import '../providers/targets_provider.dart';
+import 'reports_screen.dart';
+import '../services/finance_math.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../providers/transactions_provider.dart';
 import '../providers/planning_provider.dart';
 import '../models/transaction.dart' as model_transaction;
@@ -29,97 +32,83 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     // Filter transactions for current month
     final currentMonthTransactions = transactions.where((t) {
-      final tMonthRef = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}';
+      final tMonthRef =
+          '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}';
       return tMonthRef == monthRef;
     }).toList();
 
-    double totalIncomes = 0;
-    double totalExpenses = 0;
-
-    for (var t in currentMonthTransactions) {
-      if (!t.isReversal) {
-        if (t.kind == model_transaction.TransactionKind.entrada) {
-          totalIncomes += t.value;
-        } else {
-          totalExpenses += t.value;
-        }
+    final hidden = ref.watch(settingsProvider).hideAmounts;
+    String money(double value) =>
+        hidden ? '••••' : Formatters.formatCurrency(value);
+    final cashRows = currentMonthTransactions
+        .where((t) => !FinanceMath.isRollover(t))
+        .toList();
+    double totalIncomes = 0, totalExpenses = 0;
+    for (final t in cashRows) {
+      if ((!t.isReversal &&
+              t.kind == model_transaction.TransactionKind.entrada) ||
+          (t.isReversal &&
+              t.kind == model_transaction.TransactionKind.despesa)) {
+        totalIncomes += t.isReversal ? -t.value : t.value;
+      } else {
+        totalExpenses += t.isReversal ? -t.value : t.value;
       }
     }
-    
-    // Add reversals correctly
-    for (var t in currentMonthTransactions) {
-       if (t.isReversal) {
-          if (t.kind == model_transaction.TransactionKind.entrada) {
-             totalIncomes += t.value;
-          } else {
-             totalExpenses += t.value;
-          }
-       }
-    }
-
-    final balance = totalIncomes - totalExpenses;
-    final total = totalIncomes + totalExpenses;
-    final spentPercentage = totalIncomes > 0 ? ((totalExpenses / totalIncomes) * 100).clamp(0, 999) : 0.0;
-
-    final currentMonthPlans = plannedItems.where((i) {
-      if (!i.isInstallment! && i.monthRef != monthRef) return false;
-      if (i.expirationDate != null) {
-        final currentMonthParts = monthRef.split('-');
-        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
-        if (currentMonthDate.isAfter(i.expirationDate!)) return false;
-      }
-      if (i.isInstallment!) {
-        final currentMonthParts = monthRef.split('-');
-        final currentMonthDate = DateTime(int.parse(currentMonthParts[0]), int.parse(currentMonthParts[1]));
-        final startMonthParts = i.monthRef.split('-');
-        final startMonthDate = DateTime(int.parse(startMonthParts[0]), int.parse(startMonthParts[1]));
-        if (currentMonthDate.isBefore(startMonthDate)) return false;
-        final diffMonths = (currentMonthDate.year - startMonthDate.year) * 12 + currentMonthDate.month - startMonthDate.month;
-        if (diffMonths >= (i.totalInstallments ?? 1)) return false;
-      }
-      return true;
-    }).toList();
-
-    double plannedIncomes = currentMonthPlans
-        .where((i) => i.type == PlanItemType.entradaFixa || i.type == PlanItemType.entradaPrevista || i.type == PlanItemType.entradaVariavel)
-        .fold(0.0, (sum, i) => sum + i.value);
-    double alreadyReceived = currentMonthTransactions
-        .where((t) => t.kind == model_transaction.TransactionKind.entrada && t.planItemId != null && !t.isReversal)
-        .fold(0.0, (sum, t) => sum + t.value);
-    double totalToReceive = (plannedIncomes - alreadyReceived).clamp(0.0, double.infinity);
-
-    double mandatoryToSpend = currentMonthPlans
-        .where((i) => i.type == PlanItemType.despesaObrigatoria || i.type == PlanItemType.despesaVariavelObrigatoria)
-        .fold(0.0, (sum, i) => sum + i.value);
-
-    double alreadyPaidMandatory = currentMonthTransactions
-        .where((t) {
-          if (t.kind != model_transaction.TransactionKind.despesa || t.planItemId == null || t.isReversal) return false;
-          final plan = currentMonthPlans.firstWhere((p) => p.id == t.planItemId, orElse: () => PlanItem(id: '', type: PlanItemType.despesaPrevista, name: '', value: 0, monthRef: '', createdAt: DateTime.now()));
-          return plan.type == PlanItemType.despesaObrigatoria || plan.type == PlanItemType.despesaVariavelObrigatoria;
-        })
-        .fold(0.0, (sum, t) => sum + t.value);
-
-    double spentOnAdditionals = currentMonthTransactions
-        .where((t) {
-          if (t.kind != model_transaction.TransactionKind.despesa || t.isReversal) return false;
-          if (t.planItemId == null) return true;
-          final plan = currentMonthPlans.firstWhere((p) => p.id == t.planItemId, orElse: () => PlanItem(id: '', type: PlanItemType.despesaPrevista, name: '', value: 0, monthRef: '', createdAt: DateTime.now()));
-          return plan.type == PlanItemType.despesaPrevista;
-        })
-        .fold(0.0, (sum, t) => sum + t.value);
-
-    double plannedAdditionals = currentMonthPlans
-        .where((i) => i.type == PlanItemType.despesaPrevista)
-        .fold(0.0, (sum, i) => sum + i.value);
-
-    double rolloverMoney = currentMonthTransactions
-        .where((t) => !t.isReversal && (t.title == 'Saldo Mês Anterior' || t.title == 'Saldo Anterior Acumulado' || t.title == 'Saldo do Mês Anterior'))
-        .fold(0.0, (sum, t) => sum + t.value);
-
-    double leftToPay = (mandatoryToSpend - alreadyPaidMandatory).clamp(0.0, double.infinity);
-    double totalNaoGasto = (totalToReceive + alreadyReceived) - totalExpenses;
-
+    final endOfMonth = DateTime.parse('$monthRef-01');
+    final nextMonth = DateTime(endOfMonth.year, endOfMonth.month + 1);
+    final balance = FinanceMath.balance(
+      transactions.where((t) => t.date.isBefore(nextMonth)),
+    );
+    final total =
+        totalIncomes.clamp(0, double.infinity) +
+        totalExpenses.clamp(0, double.infinity);
+    final spentPercentage = totalIncomes > 0
+        ? (totalExpenses / totalIncomes * 100).clamp(0, 999)
+        : 0.0;
+    final currentMonthPlans = plannedItems;
+    final incomePlans = currentMonthPlans.where(FinanceMath.isIncome);
+    final mandatory = currentMonthPlans.where(
+      (p) =>
+          p.type == PlanItemType.despesaObrigatoria ||
+          p.type == PlanItemType.despesaVariavelObrigatoria,
+    );
+    final alreadyReceived = incomePlans.fold(
+      0.0,
+      (s, p) => s + FinanceMath.realized(p, currentMonthTransactions),
+    );
+    final totalToReceive = incomePlans.fold(
+      0.0,
+      (s, p) =>
+          s +
+          (p.value - FinanceMath.realized(p, currentMonthTransactions)).clamp(
+            0,
+            double.infinity,
+          ),
+    );
+    final mandatoryToSpend = mandatory.fold(0.0, (s, p) => s + p.value);
+    final alreadyPaidMandatory = mandatory.fold(
+      0.0,
+      (s, p) => s + FinanceMath.realized(p, currentMonthTransactions),
+    );
+    final plannedAdditionals = currentMonthPlans
+        .where((p) => p.type == PlanItemType.despesaPrevista)
+        .fold(0.0, (s, p) => s + p.value);
+    final spentOnAdditionals = totalExpenses - alreadyPaidMandatory;
+    final rolloverMoney = FinanceMath.balance(
+      transactions.where((t) => t.date.isBefore(endOfMonth)),
+    );
+    final leftToPay = mandatory.fold(
+      0.0,
+      (s, p) =>
+          s +
+          (p.value - FinanceMath.realized(p, currentMonthTransactions)).clamp(
+            0,
+            double.infinity,
+          ),
+    );
+    final totalNaoGasto = balance + totalToReceive - leftToPay;
+    final budgets = ref.watch(budgetsProvider);
+    final goals = ref.watch(goalsProvider);
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -131,33 +120,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Olá! 👋',
-                        style: GoogleFonts.inter(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Seu mês, em foco',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Visão geral das finanças',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AppTheme.textTertiary,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Visão geral das finanças',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 14,
+                            color: AppTheme.textTertiary,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Row(
                     children: [
                       // Logo
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.asset('assets/images/logo.png', height: 32),
+                        child: Image.asset(
+                          'assets/images/logo.webp',
+                          height: 32,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       // Settings
@@ -166,11 +162,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppTheme.surface.withOpacity(0.6),
+                            color: AppTheme.surface.withValues(alpha: 0.6),
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withOpacity(0.08)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
                           ),
-                          child: const Icon(Icons.settings_rounded, size: 20, color: AppTheme.textSecondary),
+                          child: const Icon(
+                            Icons.settings_rounded,
+                            size: 20,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -179,32 +181,90 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const SizedBox(height: 20),
 
-
-
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => context.push('/reports'),
+                    icon: const Icon(Icons.query_stats),
+                    label: const Text('Relatórios e metas'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go('/transactions'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Registrar'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              GlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Resultado do mês',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 12,
+                      children: [
+                        Text(
+                          '↑ Receitas  ${money(totalIncomes)}',
+                          style: const TextStyle(color: AppTheme.success),
+                        ),
+                        Text(
+                          '↓ Despesas  ${money(totalExpenses)}',
+                          style: const TextStyle(color: AppTheme.error),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Balanço: ${money(totalIncomes - totalExpenses)}'),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${budgets.length} orçamentos • ${goals.length} metas em acompanhamento',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // ─── Big Number Display ───
               GlassCard(
-                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-                borderColor: balance >= 0 
-                    ? AppTheme.success.withOpacity(0.15) 
-                    : AppTheme.error.withOpacity(0.15),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 28,
+                  horizontal: 20,
+                ),
+                borderColor: balance >= 0
+                    ? AppTheme.success.withValues(alpha: 0.15)
+                    : AppTheme.error.withValues(alpha: 0.15),
                 child: Column(
                   children: [
                     Text(
-                      'Saldo Atual',
-                      style: GoogleFonts.inter(
+                      'Saldo acumulado até o mês',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
                         fontSize: 13,
                         color: AppTheme.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      Formatters.formatCurrency(balance),
-                      style: GoogleFonts.inter(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: balance >= 0 ? AppTheme.success : AppTheme.error,
-                        letterSpacing: -2,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        money(balance),
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: balance >= 0
+                              ? AppTheme.success
+                              : AppTheme.error,
+                          letterSpacing: -2,
+                        ),
                       ),
                     ),
                   ],
@@ -213,46 +273,88 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 16),
 
               // ─── Grid Analítico Preditivo ───
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.5,
+              ExpansionTile(
+                title: const Text('Detalhes do planejamento'),
+                tilePadding: EdgeInsets.zero,
                 children: [
-                  QuickStatCard(label: 'Total a Receber', value: Formatters.formatCurrency(totalToReceive), icon: Icons.download_rounded, color: AppTheme.success),
-                  QuickStatCard(label: 'Obrigatório a Gastar', value: Formatters.formatCurrency(mandatoryToSpend), icon: Icons.warning_amber_rounded, color: AppTheme.error),
-                  QuickStatCard(label: 'Já Pago (Fixas)', value: Formatters.formatCurrency(alreadyPaidMandatory), icon: Icons.check_circle_outline_rounded, color: AppTheme.primary),
-                  QuickStatCard(label: 'Gasto Adicional', value: Formatters.formatCurrency(spentOnAdditionals), icon: Icons.receipt_long_rounded, color: Colors.orange),
-                  QuickStatCard(label: 'Adicionais Previstas', value: Formatters.formatCurrency(plannedAdditionals), icon: Icons.lightbulb_outline_rounded, color: Colors.amber),
-                  QuickStatCard(label: 'Sobra Anterior', value: Formatters.formatCurrency(rolloverMoney), icon: Icons.history_rounded, color: AppTheme.textSecondary),
-                  QuickStatCard(label: 'Falta Pagar no Mês', value: Formatters.formatCurrency(leftToPay), icon: Icons.schedule_rounded, color: AppTheme.error),
-                  QuickStatCard(
-                    label: 'Total Não Gasto (Livre)', 
-                    value: Formatters.formatCurrency(totalNaoGasto), 
-                    icon: Icons.savings_rounded, 
-                    color: AppTheme.success,
-                    subtitle1: 'Já recebido: ${Formatters.formatCurrency(alreadyReceived)}',
-                    subtitle2: 'A receber: ${Formatters.formatCurrency(totalToReceive)}',
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    mainAxisExtent: MediaQuery.textScalerOf(context).scale(220),
+                    children: [
+                      QuickStatCard(
+                        label: 'Total a Receber',
+                        value: money(totalToReceive),
+                        icon: Icons.download_rounded,
+                        color: AppTheme.success,
+                      ),
+                      QuickStatCard(
+                        label: 'Obrigatório a Gastar',
+                        value: money(mandatoryToSpend),
+                        icon: Icons.warning_amber_rounded,
+                        color: AppTheme.error,
+                      ),
+                      QuickStatCard(
+                        label: 'Já Pago (Fixas)',
+                        value: money(alreadyPaidMandatory),
+                        icon: Icons.check_circle_outline_rounded,
+                        color: AppTheme.primary,
+                      ),
+                      QuickStatCard(
+                        label: 'Gasto Adicional',
+                        value: money(spentOnAdditionals),
+                        icon: Icons.receipt_long_rounded,
+                        color: Colors.orange,
+                      ),
+                      QuickStatCard(
+                        label: 'Adicionais Previstas',
+                        value: money(plannedAdditionals),
+                        icon: Icons.lightbulb_outline_rounded,
+                        color: Colors.amber,
+                      ),
+                      QuickStatCard(
+                        label: 'Sobra Anterior',
+                        value: money(rolloverMoney),
+                        icon: Icons.history_rounded,
+                        color: AppTheme.textSecondary,
+                      ),
+                      QuickStatCard(
+                        label: 'Falta Pagar no Mês',
+                        value: money(leftToPay),
+                        icon: Icons.schedule_rounded,
+                        color: AppTheme.error,
+                      ),
+                      QuickStatCard(
+                        label: 'Projeção após obrigações',
+                        value: money(totalNaoGasto),
+                        icon: Icons.savings_rounded,
+                        color: AppTheme.success,
+                        subtitle1: 'Já recebido: ${money(alreadyReceived)}',
+                        subtitle2: 'A receber: ${money(totalToReceive)}',
+                      ),
+                    ],
                   ),
                 ],
               ),
               const SizedBox(height: 24),
 
               // ─── Linha do Tempo Preditiva ───
-              TimelineWidget(currentBalance: balance),
+              if (!hidden) TimelineWidget(currentBalance: balance),
               const SizedBox(height: 24),
 
               // ─── Donut Chart ───
-              if (total > 0) ...[
+              if (total > 0 && !hidden) ...[
                 GlassCard(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       Text(
                         'Distribuição',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textSecondary,
@@ -293,7 +395,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               children: [
                                 Text(
                                   '${spentPercentage.toStringAsFixed(0)}%',
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
                                     color: AppTheme.textPrimary,
@@ -301,7 +404,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 ),
                                 Text(
                                   'gasto',
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
                                     fontSize: 12,
                                     color: AppTheme.textTertiary,
                                   ),
@@ -316,7 +420,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _LegendDot(color: AppTheme.success, label: 'Entradas'),
+                          _LegendDot(
+                            color: AppTheme.success,
+                            label: 'Entradas',
+                          ),
                           const SizedBox(width: 24),
                           _LegendDot(color: AppTheme.error, label: 'Saídas'),
                         ],
@@ -331,12 +438,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Últimas Transações',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
+                  Expanded(
+                    child: Text(
+                      'Últimas Transações',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                   ),
                   TextButton(
@@ -345,7 +455,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     },
                     child: Text(
                       'Ver todas',
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Inter',
                         fontSize: 13,
                         color: AppTheme.primary,
                         fontWeight: FontWeight.w600,
@@ -363,96 +474,128 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildRecentTransactions(List<model_transaction.Transaction> transactions) {
+  Widget _buildRecentTransactions(
+    List<model_transaction.Transaction> transactions,
+  ) {
     if (transactions.isEmpty) {
       return GlassCard(
         padding: const EdgeInsets.all(32),
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.receipt_long_rounded, size: 40, color: AppTheme.textTertiary.withOpacity(0.4)),
+              Icon(
+                Icons.receipt_long_rounded,
+                size: 40,
+                color: AppTheme.textTertiary.withValues(alpha: 0.4),
+              ),
               const SizedBox(height: 12),
               Text(
                 'Nenhuma transação neste mês.',
-                style: GoogleFonts.inter(color: AppTheme.textTertiary, fontSize: 14),
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  color: AppTheme.textTertiary,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
         ),
       );
     }
-    
+
     final recent = transactions.take(5).toList();
-    
+
     return GlassCard(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: List.generate(recent.length, (index) {
           final t = recent[index];
-          final isIncome = (t.kind == model_transaction.TransactionKind.entrada && !t.isReversal) || 
-                           (t.kind == model_transaction.TransactionKind.despesa && t.isReversal);
+          final isIncome =
+              (t.kind == model_transaction.TransactionKind.entrada &&
+                  !t.isReversal) ||
+              (t.kind == model_transaction.TransactionKind.despesa &&
+                  t.isReversal);
           final color = isIncome ? AppTheme.success : AppTheme.error;
-          
+
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: color.withOpacity(0.12),
+              InkWell(
+                onTap: () => showTransactionDetails(
+                  context,
+                  t,
+                  (v) => ref.read(settingsProvider).hideAmounts
+                      ? '••••'
+                      : Formatters.formatCurrency(v),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color.withValues(alpha: 0.12),
+                        ),
+                        child: Icon(
+                          isIncome
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded,
+                          color: color,
+                          size: 18,
+                        ),
                       ),
-                      child: Icon(
-                        isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                        color: color,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.title ?? t.categorySnapshotName ?? 'Transação',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t.title ?? t.categorySnapshotName ?? 'Transação',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            Formatters.formatDate(t.date),
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: AppTheme.textTertiary,
+                            Text(
+                              Formatters.formatDate(t.date),
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: AppTheme.textTertiary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${isIncome ? '+' : '-'} ${Formatters.formatCurrency(t.value)}',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+                      Text(
+                        ref.watch(settingsProvider).hideAmounts
+                            ? '••••'
+                            : '${isIncome ? '+' : '-'} ${Formatters.formatCurrency(t.value)}',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (index < recent.length - 1)
                 Divider(
                   height: 1,
                   indent: 66,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
             ],
           );
@@ -461,7 +604,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 }
-
 
 // ─── Legend Dot ────────────────────────────────────────────────────
 
@@ -478,15 +620,13 @@ class _LegendDot extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
         const SizedBox(width: 6),
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Inter',
             fontSize: 12,
             color: AppTheme.textSecondary,
           ),

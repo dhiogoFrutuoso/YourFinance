@@ -1,3 +1,4 @@
+import 'widgets/app_lock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes.dart';
@@ -6,14 +7,10 @@ import 'services/hive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await HiveService.init();
 
-  runApp(
-    const ProviderScope(
-      child: YourFinanceApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: YourFinanceApp()));
 }
 
 class YourFinanceApp extends StatelessWidget {
@@ -23,6 +20,7 @@ class YourFinanceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'YourFinance',
+      builder: (context, child) => AppLock(child: child!),
       theme: AppTheme.darkTheme,
       routerConfig: goRouter,
       debugShowCheckedModeBanner: false,

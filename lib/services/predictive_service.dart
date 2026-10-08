@@ -1,3 +1,4 @@
+import '../services/finance_math.dart';
 import '../models/transaction.dart' as model_transaction;
 import '../models/plan_item.dart';
 
@@ -15,21 +16,26 @@ class PredictiveService {
 
     for (var plan in plannedItems) {
       // Quanto já foi realizado (pago/recebido) deste plano neste mês
-      final realizedAmount = currentMonthTransactions
-          .where((t) => t.planItemId == plan.id && !t.isReversal)
-          .fold(0.0, (sum, t) => sum + t.value);
+      final realizedAmount = FinanceMath.realized(
+        plan,
+        currentMonthTransactions,
+      );
 
       // Regra de Ouro: Qualquer item que JÁ FOI PAGO OU RECEBIDO deve ser completamente ignorado
       final isPaid = realizedAmount >= plan.value;
       if (isPaid) continue;
 
-      final dueDate = plan.dueDate ?? plan.expirationDate ?? DateTime(targetDate.year, targetDate.month, targetDate.day);
+      final dueDate =
+          plan.dueDate ??
+          plan.expirationDate ??
+          DateTime(targetDate.year, targetDate.month, targetDate.day);
 
       // Só consideramos itens cujo dia de vencimento/recebimento seja ATÉ o dia selecionado
       if (dueDate.day <= targetDay) {
-        final isIncome = plan.type == PlanItemType.entradaFixa || 
-                         plan.type == PlanItemType.entradaPrevista || 
-                         plan.type == PlanItemType.entradaVariavel;
+        final isIncome =
+            plan.type == PlanItemType.entradaFixa ||
+            plan.type == PlanItemType.entradaPrevista ||
+            plan.type == PlanItemType.entradaVariavel;
 
         final pendingValue = plan.value - realizedAmount;
 

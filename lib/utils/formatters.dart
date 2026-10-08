@@ -2,13 +2,15 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 
 class Formatters {
-  static final _currencyFormat = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  static bool hideAmounts = false;
+  static final _currencyFormat = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+  );
   static final _dateFormat = DateFormat('dd/MM/yyyy');
-  static final _monthYearFormat = DateFormat('MM/yyyy');
-  static final _monthNameYearFormat = DateFormat('MMMM yyyy', 'pt_BR');
 
   static String formatCurrency(double value) {
-    return _currencyFormat.format(value);
+    return hideAmounts ? '••••' : _currencyFormat.format(value);
   }
 
   static String formatDate(DateTime date) {

@@ -3,16 +3,9 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'transaction.freezed.dart';
 part 'transaction.g.dart';
 
-enum PaymentMethod { 
-  dinheiro, 
-  pix, 
-  cartaoCredito 
-}
+enum PaymentMethod { dinheiro, pix, cartaoCredito }
 
-enum TransactionKind { 
-  entrada, 
-  despesa 
-}
+enum TransactionKind { entrada, despesa }
 
 @freezed
 abstract class Transaction with _$Transaction {
@@ -31,5 +24,6 @@ abstract class Transaction with _$Transaction {
     required DateTime createdAt,
   }) = _Transaction;
 
-  factory Transaction.fromJson(Map<String, dynamic> json) => _$TransactionFromJson(json);
+  factory Transaction.fromJson(Map<String, dynamic> json) =>
+      _$TransactionFromJson(json);
 }

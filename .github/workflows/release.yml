@@ -1,52 +1,65 @@
-name: Build & Auto Release APK
+name: Validate, Build & Release APK
 
 on:
   push:
-    branches:
-      - master
-      - main
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build & Release
     runs-on: ubuntu-latest
-
+    env:
+      SIGNING_KEYSTORE: ${{ secrets.ANDROID_LEGACY_KEYSTORE_BASE64 }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
+          distribution: temurin
           java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x'
-          channel: 'stable'
-
-      - name: Install Dependencies
+          flutter-version: '3.44.3'
+          channel: stable
+          cache: true
+      - name: Install dependencies
         run: flutter pub get
-
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+      - name: Restore the existing signing identity
+        if: env.SIGNING_KEYSTORE != ''
+        run: |
+          mkdir -p "$HOME/.android"
+          printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
       - name: Build APK
         run: flutter build apk --release
-
-      - name: Create Dynamic Tag Name
-        id: vars
-        run: |
-          VERSION="v1.0.${{ github.run_number }}"
-          echo "tag_name=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.vars.outputs.tag_name }}
-          name: "YourFinance ${{ steps.vars.outputs.tag_name }} (Auto Release)"
-          body: "Compilação automatizada da nova versão via commit no GitHub Actions."
-          files: build/app/outputs/flutter-apk/app-release.apk
+          name: yourfinance-apk-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+      - name: Publish versioned release with the existing signing identity
+        if: env.SIGNING_KEYSTORE != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists; keeping its verified APK."
+            exit 0
+          fi
+          cd build/app/outputs/flutter-apk
+          sha256sum app-release.apk > SHA256SUMS.txt
+          cd "$GITHUB_WORKSPACE"
+          gh release create "v$VERSION" build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/SHA256SUMS.txt --target "$GITHUB_SHA" --title "YourFinance v$VERSION" --notes-file docs/RELEASE_NOTES.md
+      - name: Signing status
+        if: env.SIGNING_KEYSTORE == ''
+        run: echo 'APK validated as a workflow artifact. Automatic publication requires the existing signing identity; do not distribute an ephemeral CI signature as an update.'
